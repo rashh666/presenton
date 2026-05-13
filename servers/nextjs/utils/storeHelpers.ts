@@ -150,6 +150,17 @@ export const getLLMConfigValidationError = (
           return "Open WebUI URL is required.";
         }
         break;
+      case "openai_compatible":
+        if (!isProvided(llmConfig.OPENAI_COMPAT_IMAGE_BASE_URL)) {
+          return "OpenAI-compatible image base URL is required.";
+        }
+        if (!isProvided(llmConfig.OPENAI_COMPAT_IMAGE_API_KEY)) {
+          return "OpenAI-compatible image API key is required.";
+        }
+        if (!isProvided(llmConfig.OPENAI_COMPAT_IMAGE_MODEL)) {
+          return "Select or enter an image model for the custom OpenAI-compatible endpoint.";
+        }
+        break;
       default:
         return "Select a valid image provider.";
     }

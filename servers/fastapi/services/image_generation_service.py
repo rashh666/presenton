@@ -670,6 +670,7 @@ class ImageGenerationService:
                     else:
                         raise Exception(f"Failed to download image: {response.status}")
 
+
     async def generate_image_openai_compatible(
         self, prompt: str, output_directory: str
     ) -> str:
@@ -685,23 +686,54 @@ class ImageGenerationService:
         client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
         try:
+            # Many OpenAI-compatible image servers omit support for response_format;
+            # omit it and accept either b64_json or url in the response.
             response = await client.images.generate(
                 model=model,
                 prompt=prompt,
                 n=1,
                 size="1024x1024",
-                response_format="b64_json",
             )
 
-            image_data = base64.b64decode(response.data[0].b64_json)
+            first = response.data[0]
+            b64 = getattr(first, "b64_json", None)
+            url = getattr(first, "url", None)
+
             image_path = os.path.join(output_directory, f"{uuid.uuid4()}.png")
 
-            with open(image_path, "wb") as f:
-                f.write(image_data)
+            if b64:
+                image_data = base64.b64decode(b64)
+                with open(image_path, "wb") as f:
+                    f.write(image_data)
+            elif url:
+                from urllib.parse import urlparse
+
+                parsed = urlparse(url)
+                if not parsed.scheme:
+                    parsed_base = urlparse(base_url)
+                    origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
+                    url = origin.rstrip("/") + "/" + url.lstrip("/")
+
+                headers = {"Authorization": f"Bearer {api_key}"}
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                    dl = await session.get(
+                        url,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=120),
+                    )
+                    if dl.status != 200:
+                        text = await dl.text()
+                        raise Exception(
+                            f"Failed to download image from url: {dl.status} {text}"
+                        )
+                    with open(image_path, "wb") as f:
+                        f.write(await dl.read())
+            else:
+                raise Exception(
+                    "OpenAI-compatible image response had no b64_json or url"
+                )
 
             return image_path
         except Exception as e:
             print(f"Error generating image with OpenAI Compatible provider: {e}")
             raise e
-
-        raise Exception("No images found in ComfyUI outputs")
