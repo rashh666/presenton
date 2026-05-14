@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Presenton pipeline eval — outline, structure, slide content, integration (single entrypoint)"
+description: "Presenton outline generation eval (single entrypoint)"
 
 # Export OPENAI_API_KEY (or your provider key) before running. Do not put secrets in this file.
 
@@ -39,8 +39,3 @@ defaultTest:
 
 tests:
   - file://tests/outline/core.yaml
-  - file://tests/outline/user-prompts.yaml
-  - file://tests/structure/unit.yaml
-  - file://tests/structure/builtin-standard.yaml
-  - file://tests/slide-content/unit.yaml
-  - file://tests/integration/flow.yaml
