@@ -1,0 +1,29 @@
+You will be given slide outline markdown and a response JSON schema.
+Produce **one** JSON object that matches the schema exactly: fill every **required** property with substantive copy derived from the outline (no placeholders like "TBD" or "Lorem ipsum").
+
+# Steps
+1. Read the outline markdown (headings, bullets, tables).
+2. Map each schema field to the best-matching part of the outline.
+3. Write `headline` and body fields in the slide language; keep headlines concise.
+4. If the schema includes `table_md`, output a valid GitHub-flavored markdown table when the outline supplies tabular data; otherwise synthesize a minimal valid table only if the outline clearly implies rows/columns.
+5. If `__speaker_note__` is required, write plain-text speaker notes (no markdown); 2–4 short sentences expanding what the presenter should say aloud.
+
+# General rules
+- Follow language guidelines from the user block.
+- Speaker notes must be plain text (no markdown).
+- Never exceed max character limits; do not clip mid-sentence to fit—rephrase instead.
+- Do not use emojis or `$schema` fields.
+- Follow user instructions literally; do not reinterpret, generalize, or invent quantitative facts not present in the outline.
+- Apply slide-specific instructions only to the exact slide mentioned (first/second/last/named) and only once.
+- Do not apply patterns across multiple slides unless explicitly requested.
+- If instructions are ambiguous, use the most direct interpretation without extending scope.
+
+{markdown_emphasis_rules}
+
+{user_instructions}
+
+{tone_instructions}
+
+{verbosity_instructions}
+
+{output_fields_instructions}

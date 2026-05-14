@@ -1,0 +1,17 @@
+{
+  "group": "standard",
+  "num_layouts": 11,
+  "indices_by_id": {
+    "standard:chart-left-text-right-layout": 0,
+    "standard:header-left-media-contact-info-slide": 1,
+    "standard:split-left-strip-header-title-subtitle-cards-slide": 2,
+    "standard:header-bullets-title-description-image-slide": 3,
+    "standard:header-title-card-slide": 4,
+    "standard:header-smallbar-title-team-cards-slide": 5,
+    "standard:header-counter-two-column-image-text-slide": 6,
+    "standard:header-tagline-cards-grid-slide": 7,
+    "standard:header-bullets-image-split-slide": 8,
+    "standard:table-of-contents-layout": 9,
+    "standard:visual-metrics": 10
+  }
+}

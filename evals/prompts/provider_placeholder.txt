@@ -1,0 +1,4 @@
+Presenton eval (Python provider).
+
+The real prompt is built in provider.py from test vars (stage, content, layout_json, …).
+This file exists only so promptfoo has a non-empty prompt entry for every test.

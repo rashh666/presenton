@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Presenton pipeline eval — outline, structure, slide content, integration (single entrypoint)"
+
+# Export OPENAI_API_KEY (or your provider key) before running. Do not put secrets in this file.
+
+env:
+  LLM: openai
+  OPENAI_MODEL: gpt-4o-mini
+
+# One placeholder prompt: messages are assembled in provider.py from each test's vars.
+prompts:
+  - file://prompts/provider_placeholder.txt
+
+providers:
+  - id: file://provider.py
+    label: presenton-llm
+
+defaultTest:
+  options:
+    provider: openai:chat:gpt-4o-mini
+  assert:
+    - type: javascript
+      value: |
+        try {
+          if (output == null) return false;
+          if (typeof output === 'object') {
+            JSON.parse(JSON.stringify(output));
+            return true;
+          }
+          if (typeof output === 'string') {
+            JSON.parse(output);
+            return true;
+          }
+          return false;
+        } catch (e) {
+          return false;
+        }
+      description: "Valid JSON"
+
+tests:
+  - file://tests/outline/core.yaml
+  - file://tests/outline/user-prompts.yaml
+  - file://tests/structure/unit.yaml
+  - file://tests/structure/builtin-standard.yaml
+  - file://tests/slide-content/unit.yaml
+  - file://tests/integration/flow.yaml

@@ -1,0 +1,8 @@
+Content: {content}
+Number of Slides: {display_slides}
+Language: {display_language}
+Tone: {tone}
+Today's Date: {today}
+Include Title Slide: {include_title_slide}
+{toc_text}Instructions: {instructions}
+Context: {additional_context}

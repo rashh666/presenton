@@ -1,0 +1,395 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+#
+# Outline regression cases (hand-authored). Library CSV scenarios: tests/outline/user-prompts.yaml
+#
+# Outline stage vars MUST mirror servers/fastapi/models/generate_presentation_request.py
+# plus presentation.web_search and eval-only stage:
+#
+#   stage: outline                    # required by evals/provider.py (not HTTP API)
+#   content: string                   # required
+#   n_slides: int | null              # null => auto-detect slide count (same as API omit)
+#   language: string | null           # null/empty => auto-detect (API optional)
+#   tone: default|casual|professional|funny|educational|sales_pitch   # servers/fastapi/enums/tone.py
+#   verbosity: concise|standard|text-heavy                            # servers/fastapi/enums/verbosity.py
+#   instructions: string              # optional; use "" if none
+#   additional_context: string        # optional; use "" if none (user prompt shows Context: None)
+#   include_title_slide: bool
+#   include_table_of_contents: bool
+#   web_search: bool                   # API field; enables WebSearchTool in provider when true
+#
+# --- Simple user prompt & outline quality ---
+- description: "[outline] simple prompt — arc, headings, audience fit"
+  vars:
+    stage: outline
+    content: >
+      Five-slide middle-school lesson: what photosynthesis is, why leaves look green,
+      inputs and outputs (word equation), one real-world example (farm or greenhouse),
+      and a short recap with five bullet questions for the class.
+    n_slides: 5
+    language: English
+    tone: educational
+    verbosity: standard
+    instructions: "Slide 5 must be recap and questions only; no new concepts on slide 5."
+    additional_context: "Audience: about 12 years old; define any technical term in one short phrase."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const _o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (_o && _o.slides) || [];
+        if (slides.length !== 5) return false;
+        return slides.every(s => /(^|\n)##\s+/.test(s.content || ''));
+    - type: llm-rubric
+      threshold: 0.72
+      value: >
+        Topic: photosynthesis for middle school. Instructions: {{instructions}}
+        Score 1 if there is a clear teaching progression and slide 5 is recap/questions only.
+        Score 0 if order is random, jargon is unexplained, or slide 5 introduces new core ideas.
+
+# --- Data-forward user prompt (numbers only from user text) ---
+- description: "[outline] data-driven global warming — stick to supplied metrics"
+  vars:
+    stage: outline
+    content: >
+      Data-driven outline on global warming for executives. Use ONLY these quantitative facts:
+      2023 global mean temperature was about 1.48C above the 1850–1900 baseline (WMO);
+      atmospheric CO2 was about 419 ppm for 2023 (NOAA annual mean);
+      ocean heat content reached a record high in 2023 (WMO). Organize as a metrics-led story;
+      do not introduce other percentages, currency, or ppm values not listed here.
+    n_slides: 6
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: "Open with the temperature anomaly, then CO2, then ocean heat, then implications and actions."
+    additional_context: "Charts will be built from outline bullets; name each metric once clearly."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        return Array.isArray(o.slides) && o.slides.length === 6;
+    - type: javascript
+      value: |
+        const _o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = (_o.slides || []).map(s => s.content || '').join('\n');
+        return /1\.48|419|ocean heat|record high/i.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >
+        Allowed numbers only: 1.48C anomaly, 419 ppm CO2, ocean heat record 2023. User content: {{content}}
+        Score 1 if the outline uses only those figures and follows the requested order.
+        Score 0 if extra statistics or invented numbers appear.
+
+# --- User instructions: slide-specific language ---
+- description: "[outline] instruction following — slide 2 body in Arabic, others English"
+  vars:
+    stage: outline
+    content: >
+      Five-slide overview of electric bus adoption in cities: benefits for air quality,
+      total cost of ownership vs diesel, charging and grid impacts, rider experience,
+      and a closing slide on policy levers. Keep substance neutral and practical.
+    n_slides: 5
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: >
+      Slides 1, 3, 4, and 5: write slide body in English. Slide 2 only: write the entire slide body
+      in Arabic script (Modern Standard Arabic), at least three sentences or bullet clusters;
+      do not mix English into slide 2 body except proper nouns if unavoidable.
+    additional_context: "City transit agency workshop; avoid vendor names."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const _o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (_o && _o.slides) || [];
+        if (slides.length < 2) return false;
+        const ar = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]{40}/;
+        const body2 = slides[1].content || '';
+        if (!ar.test(body2)) return false;
+        const others = [0, 2, 3, 4].filter(i => i < slides.length).map(i => slides[i].content || '').join('\n');
+        return /[A-Za-z]{30}/.test(others);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >
+        Instructions: {{instructions}}
+        Score 1 if slide 2 is predominantly Arabic script and other slides are predominantly English.
+        Score 0 if Arabic appears on multiple slides or slide 2 is mostly English.
+
+# --- Parameters: TOC + verbosity + title slide off ---
+- description: "[outline] parameters — TOC + text-heavy + no presenter title slide"
+  vars:
+    stage: outline
+    content: >
+      Seven-slide internal roadmap: vision, current product pillars, top customer pains,
+      engineering bets, GTM calendar, risks and mitigations, and decision asks for leadership.
+    n_slides: 7
+    language: English
+    tone: professional
+    verbosity: text-heavy
+    instructions: >
+      Include a table of contents slide after the opening roadmap title slide; do not add a
+      presenter-name block anywhere. Slides should carry enough bullet detail for a 30-minute review.
+    additional_context: ""
+    include_title_slide: false
+    include_table_of_contents: true
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const _o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (_o && _o.slides) || [];
+        if (slides.length !== 7) return false;
+        const blob = JSON.stringify(slides).toLowerCase();
+        return /table of contents|contents|agenda/i.test(blob);
+    - type: javascript
+      value: |
+        const _o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (_o && _o.slides) || [];
+        const counts = slides.map(s => (s.content || '').split(/\s+/).filter(Boolean).length);
+        const avg = counts.reduce((a,b) => a + b, 0) / Math.max(1, counts.length);
+        return avg >= 35;
+    - type: llm-rubric
+      threshold: 0.7
+      value: >
+        Instructions: {{instructions}} Content theme: {{content}}
+        Score 1 if there is a TOC-style slide and bodies are materially longer than a minimal outline.
+        Score 0 if presenter name is requested on a title slide or TOC is missing.
+
+# --- Web grounding (provider passes WebSearchTool when web_search is true) ---
+- description: "[outline] web search — recent factual hook (tooling enabled)"
+  vars:
+    stage: outline
+    content: >
+      Four-slide briefing for policy staff on major international climate conferences: ask for
+      the most recent COP held before today's date, its host city, and one headline outcome
+      that is widely reported; close with implications for national adaptation budgets.
+      If web results conflict, prefer consensus wording and avoid fabricated dates.
+    n_slides: 4
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: "Name the COP by number and host; avoid invented URLs."
+    additional_context: "Assume the reader needs verifiable-sounding phrasing suitable for a memo."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: true
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        return Array.isArray(o.slides) && o.slides.length === 4;
+    - type: llm-rubric
+      threshold: 0.65
+      value: >
+        User asked for a recent COP, host city, and one headline outcome using web grounding.
+        Content: {{content}} Instructions: {{instructions}}
+        Score 1 if the outline plausibly reflects a real recent COP (number + city + outcome) without absurd dates.
+        Score 0 if COP/year/city is clearly invented or contradicts well-known facts.
+
+# --- Genre / scenario user prompts (carried in content + context, not system template) ---
+- description: "[outline] scenario — seed pitch deck"
+  vars:
+    stage: outline
+    content: >
+      Seed-stage pitch: AI scheduling assistant for independent dental clinics. Problem: no-shows
+      and manual reminders; solution: HIPAA-aware SMS and calendar sync; traction: 12 pilot clinics,
+      waitlist in two cities; business model: per-seat SaaS; use of funds: hire two engineers and
+      SOC2 Type I. Eight slides including ask.
+    n_slides: 8
+    language: English
+    tone: sales_pitch
+    verbosity: concise
+    instructions: "Classic pitch order: hook, problem, solution, product, traction, market, business model, ask."
+    additional_context: "Presentation format: investor pitch deck; audience: seed VCs; time: 12 minutes."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        return Array.isArray(o.slides) && o.slides.length === 8;
+    - type: llm-rubric
+      threshold: 0.7
+      value: >
+        Pitch content: {{content}}
+        Score 1 if the outline reads like a coherent investor deck with problem/solution/traction/ask.
+        Score 0 if it reads like an essay or omits the fundraise ask.
+
+- description: "[outline] scenario — academic conference talk"
+  vars:
+    stage: outline
+    content: >
+      Academic talk: federated learning for electronic health records — motivation, threat model,
+      differential privacy tradeoff, algorithm sketch (high level), evaluation protocol on synthetic
+      cohorts, limitations, ethics IRB, and two future work directions.
+    n_slides: 7
+    language: English
+    tone: educational
+    verbosity: standard
+    instructions: "Use IMRAD-like flow where sensible; no vendor marketing."
+    additional_context: "Audience: ML+health faculty; 15-minute slot."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        return Array.isArray(o.slides) && o.slides.length === 7;
+    - type: llm-rubric
+      threshold: 0.7
+      value: >
+        Talk abstract: {{content}}
+        Score 1 if outline emphasizes methods, evaluation, limitations, and ethics appropriate for academia.
+        Score 0 if tone is salesy or structure is purely motivational.
+
+- description: "[outline] scenario — marketing launch narrative"
+  vars:
+    stage: outline
+    content: >
+      Consumer launch for a plant-based yogurt line: audience insight, positioning line,
+      hero claim (taste + protein), three proof points (blind taste, nutrition panel, sustainability),
+      omnichannel plan (social, retail demo, influencers), launch timeline, KPIs, and CTA.
+    n_slides: 8
+    language: English
+    tone: sales_pitch
+    verbosity: standard
+    instructions: "Slide 1 must be a punchy title + tagline only; build desire before proof."
+    additional_context: "Presentation format: marketing narrative deck for agency review."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        return Array.isArray(o.slides) && o.slides.length === 8;
+    - type: llm-rubric
+      threshold: 0.7
+      value: >
+        Brief: {{content}} Instructions: {{instructions}}
+        Score 1 if narrative follows awareness/desire/proof and ends with CTA and metrics.
+        Score 0 if it is a flat feature list without story.
+
+- description: "[outline] scenario — analytics readout"
+  vars:
+    stage: outline
+    content: >
+      Q3 self-serve analytics readout: funnel DAU→signup→activation with week-over-week deltas,
+      cohort retention at D7/D30, experiment A/B on onboarding checklist, data quality note on
+      missing events, segment drill (SMB vs enterprise), and three decisions for next quarter.
+    n_slides: 7
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: >
+      Use only qualitative trend language in the outline (up/down/flat) unless a number appears
+      in this prompt; do not invent percentages. Name each slide by the metric theme.
+    additional_context: "Presentation format: quarterly metrics review for product + data."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const _o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = (_o.slides || []).map(s => s.content || '').join(' ');
+        return /funnel|retention|cohort|experiment|segment|data quality|decision/i.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >
+        Content: {{content}} Instructions: {{instructions}}
+        Score 1 if outline is metric-oriented and respects the no-fabricated-numbers constraint.
+        Score 0 if random KPIs with invented percentages appear.
+
+- description: "[outline] scenario — business report to leadership"
+  vars:
+    stage: outline
+    content: >
+      Year-end business report: executive summary, financial highlights narrative (no figures),
+      operational milestones, customer segment performance narrative, HR and hiring, risk register
+      themes, legal/compliance status, strategic priorities next year, and appendix pointers.
+    n_slides: 9
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: "Keep each slide to one chapter of the report; avoid mixing themes on one slide."
+    additional_context: "Presentation format: annual business report outbrief for leadership."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        return Array.isArray(o.slides) && o.slides.length === 9;
+    - type: llm-rubric
+      threshold: 0.68
+      value: >
+        Report scope: {{content}}
+        Score 1 if slides map cleanly to report sections and tone is sober and executive.
+        Score 0 if slides repeat the same section or read like a blog.
+
+- description: "[outline] scenario — research paper walkthrough"
+  vars:
+    stage: outline
+    content: >
+      Walkthrough of a hypothetical paper on sparse transformers for long-document QA: abstract
+      summary, related work gap, method intuition, architecture bullet list, training setup,
+      main result table description (no numbers), ablation themes, failure cases, conclusion,
+      and reproducibility checklist.
+    n_slides: 8
+    language: English
+    tone: educational
+    verbosity: standard
+    instructions: "Do not invent dataset scores; describe results qualitatively."
+    additional_context: "Audience: grad seminar; presentation format: research paper overview."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        return Array.isArray(o.slides) && o.slides.length === 8;
+    - type: llm-rubric
+      threshold: 0.7
+      value: >
+        Paper walkthrough: {{content}} Instructions: {{instructions}}
+        Score 1 if structure mirrors paper sections and avoids fabricated numeric results.
+        Score 0 if fake SOTA numbers appear.
+
+- description: "[outline] scenario — general purpose update"
+  vars:
+    stage: outline
+    content: >
+      Monthly team sync: what shipped, what slipped, customer feedback themes, bugs and reliability,
+      goals for next month, and asks from other teams. Keep tone practical and short.
+    n_slides: 6
+    language: English
+    tone: casual
+    verbosity: concise
+    instructions: "No more than five bullets per slide in the outline."
+    additional_context: "General internal update; audience: engineering + design."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        return Array.isArray(o.slides) && o.slides.length === 6;
+    - type: llm-rubric
+      threshold: 0.68
+      value: >
+        Sync topics: {{content}} Instructions: {{instructions}}
+        Score 1 if outline covers the listed areas with sensible ordering for a team meeting.
+        Score 0 if it becomes a random brainstorm unrelated to the brief.
