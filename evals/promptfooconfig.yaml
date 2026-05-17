@@ -38,4 +38,5 @@ defaultTest:
       description: "Valid JSON"
 
 tests:
-  - file://tests/outline/core.yaml
+  # - file://tests/outline/core.yaml
+  - file://tests/outline/rubric_quality.yaml

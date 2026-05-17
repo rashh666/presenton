@@ -1,0 +1,1538 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+#
+# Extreme real-world outline stress suite.
+# These cases intentionally model how people actually prompt Presenton:
+# vague topics, typo-heavy asks, omitted advanced fields, auto slide counts,
+# slide counts hidden in content, default/null language or tone, no added context,
+# pasted notes, qualitative-only briefs, and current-info/web-search scenarios.
+
+- description: "[rubric][good-full][factual integrity] climate briefing source facts only"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: factual_integrity
+    field_coverage: full_options
+  vars:
+    stage: outline
+    content: >-
+      Create an executive climate risk briefing using only these facts: atmospheric CO2 is 421 ppm,
+      2023 warming reached 1.45C above pre-industrial levels, clean energy investment was USD 1.7T,
+      and solar additions were 413 GW (+87%). Present risk first, then the investment response.
+    n_slides: 5
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: "Exactly 5 slides. Do not add any other numbers, dates, source names, URLs, or citations."
+    additional_context: "Audience category: executive leadership."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - &js_exact5_headings
+      type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        return slides.length === 5 && slides.every(s => /(^|\n)##\s+/.test(s.content || ''));
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n');
+        return /421/.test(text) && /1\.45/.test(text) && /1\.7/.test(text) && /413/.test(text);
+    - type: llm-rubric
+      threshold: 0.74
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline preserves the four supplied facts accurately, uses them in a coherent risk-to-response story,
+        and does not introduce extra numbers, dates, source names, URLs, citations, or unsupported factual claims.
+        Score 0 if any supplied number is changed, a key fact is omitted, or new factual detail is invented.
+
+- description: "[rubric][bad-minimal][factual integrity] cybersecurity topic no invented specifics"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: factual_integrity
+    field_coverage: minimal_no_advanced_options
+  vars:
+    stage: outline
+    content: "cybersecurity ppt"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - &js_auto_headings_3_to_12
+      type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        return slides.length >= 3 && slides.length <= 12 &&
+          slides.every(s => /(^|\n)##\s+/.test(s.content || ''));
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n');
+        return !/CVE-\d{4}-\d+|SolarWinds|Equifax|Colonial Pipeline|\d+\s*(million|billion|%)/i.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User typed only: {{content}}
+        Score 1 if the outline stays on general cybersecurity education or awareness and avoids invented breach names,
+        CVE IDs, statistics, company incidents, or fake current claims.
+        Score 0 if it hallucinates specific incidents or numbers from a vague prompt.
+
+- description: "[rubric][bad-minimal][hallucination resistance] food pantry update no numbers"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: hallucination_resistance
+    field_coverage: no_instructions_no_context
+  vars:
+    stage: outline
+    content: >-
+      donor update food pantry. easier volunteer schedule. weekend distribution smoother.
+      feedback form added. cold storage next.
+    n_slides: auto-detect
+    language: ""
+    tone: ""
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - &js_no_fabricated_numbers_or_sources
+      type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n');
+        return !/(\$|€|£|\d+\s*(%|percent|clients?|families|meals|pounds|lbs|k|million|billion|grant))/i.test(text) &&
+          !/http|www\.|according to|study by|survey of/i.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline turns the rough notes into a donor-ready qualitative update without inventing metrics,
+        donations, named partners, quotes, testimonials, grants, URLs, or sources.
+        Score 0 if it adds concrete impact claims not present in the user's note.
+
+- description: "[rubric][bad-minimal][audience alignment] kids dental hygiene from vague prompt"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: audience_alignment
+    field_coverage: content_implies_audience
+  vars:
+    stage: outline
+    content: "teeth brushing ppt for class 2 kids"
+    n_slides: auto-detect
+    verbosity: concise
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /brush|teeth|tooth|kids|children|class|morning|night/.test(text) &&
+          !/periodontal|gingivitis|enamel remineralization|clinical trial|pathogenesis/.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User typed: {{content}}
+        Score 1 if the outline is age-appropriate for young children, uses simple everyday language,
+        and turns the vague prompt into a practical classroom lesson.
+        Score 0 if it becomes a clinical dental lecture or ignores the child audience.
+
+- description: "[rubric][good-no-instructions][structural quality] board update arc"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: structural_quality
+    field_coverage: no_user_instructions
+  vars:
+    stage: outline
+    content: >-
+      Build a six-slide board update for a B2B SaaS company covering: strategic headline,
+      market context, customer traction, product roadmap, financial discipline, and decisions requested from the board.
+    n_slides: 6
+    language: English
+    tone: professional
+    verbosity: standard
+    additional_context: "Audience: board directors."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - &js_exact6_headings
+      type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        return slides.length === 6 && slides.every(s => /(^|\n)##\s+/.test(s.content || ''));
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return ['strategic', 'market', 'customer', 'roadmap', 'financial', 'decision']
+          .every(term => text.includes(term));
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline follows a board-ready story in the requested order, gives each slide a distinct role,
+        and avoids redundant generic business filler.
+        Score 0 if required chapters are missing, scrambled, or repetitive.
+
+- description: "[rubric][bad-with-good-instructions][structural quality] vague sales deck rescued"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: structural_quality
+    field_coverage: bad_prompt_good_instructions
+  vars:
+    stage: outline
+    content: "sales deck for ai thing"
+    n_slides: 5
+    language: English
+    tone: sales_pitch
+    verbosity: standard
+    instructions: >-
+      Make it a five-slide B2B sales narrative: buyer pain, product promise, workflow proof,
+      risk reduction, and pilot CTA. Do not invent customer logos or quantified ROI.
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact5_headings
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /pain|problem/.test(text) && /promise|solution|product/.test(text) &&
+          /workflow|proof/.test(text) && /risk/.test(text) && /pilot|cta|next step/.test(text) &&
+          !/logo|case study|\d+\s*%/.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User content is vague: {{content}}
+        Instructions: {{instructions}}
+        Score 1 if the model uses the instructions to create the requested five-part sales story while avoiding fake logos,
+        case studies, and ROI metrics.
+        Score 0 if it stays vague or fabricates proof.
+
+- description: "[rubric][bad-no-options][structural quality] ugly pasted roadmap notes"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: structural_quality
+    field_coverage: pasted_notes_no_advanced_options
+  vars:
+    stage: outline
+    content: >-
+      roadmap slides??? users mad login slow, billing confusing, mobile broken sometimes, support keeps
+      asking for status page, ceo wants enterprise, eng says infra first, also launch api maybe,
+      add risks and what we do next
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User rough notes: {{content}}
+        Score 1 if the outline organizes the messy notes into a coherent roadmap narrative with user problems,
+        priorities/tradeoffs, risks, and next steps.
+        Score 0 if it simply repeats the notes in random order or invents unrelated roadmap items.
+
+- description: "[rubric][auto-count][structural quality] slide count only in content"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: structural_quality
+    field_coverage: n_slides_auto_content_mentions_count
+  vars:
+    stage: outline
+    content: >-
+      I need 7 slides for a partner enablement deck: market shift, partner opportunity,
+      ICP, onboarding workflow, sales plays, support model, and next steps.
+    n_slides: auto-detect
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        const text = slides.map(s => s.content || '').join('\n').toLowerCase();
+        return slides.length === 7 && /market/.test(text) && /partner/.test(text) &&
+          /onboarding/.test(text) && /support/.test(text) && /next/.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if auto-detect respects the slide count embedded in the content and maps the seven named chapters cleanly.
+        Score 0 if it ignores the count or collapses/duplicates major chapters.
+
+- description: "[rubric][auto-count][presentation usefulness] no slide number city decision deck"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: presentation_usefulness
+    field_coverage: n_slides_omitted
+  vars:
+    stage: outline
+    content: >-
+      Create a presentation for city council deciding how to allocate a limited public safety technology budget.
+      Compare camera upgrades, emergency dispatch software, and community reporting tools.
+      Help members understand tradeoffs, risks, equity concerns, and decision criteria.
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /camera/.test(text) && /dispatch/.test(text) && /community/.test(text) &&
+          /tradeoff|criteria|risk|equity|decision/.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the auto-sized outline is decision-useful: compares the three options, names criteria,
+        covers risks/equity, and ends with a recommendation or decision prompt.
+        Score 0 if it explains public safety technology without helping council decide.
+
+- description: "[rubric][bad-minimal][presentation usefulness] just says marketing"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: presentation_usefulness
+    field_coverage: minimal_no_context
+  vars:
+    stage: outline
+    content: "presentation on marketing"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: llm-rubric
+      threshold: 0.68
+      value: >-
+        User typed only: {{content}}
+        Score 1 if the outline creates a useful general introduction to marketing with a clear progression
+        and avoids fake company-specific metrics, brands, campaigns, or case studies.
+        Score 0 if it is incoherent, over-specific, or mostly filler.
+
+- description: "[rubric][bad-minimal][presentation usefulness] interview portfolio deck"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: presentation_usefulness
+    field_coverage: no_tone_no_context
+  vars:
+    stage: outline
+    content: "portfolio ppt for job interview product manager"
+    n_slides: auto-detect
+    language: English
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /portfolio|product manager|case|project|impact|interview|closing/.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User typed: {{content}}
+        Score 1 if the outline is useful for a PM interview: candidate story, selected projects/case studies,
+        product thinking, impact framing without fake metrics, and a concise close.
+        Score 0 if it becomes generic career advice or invents employment history.
+
+- description: "[rubric][default-tone][audience alignment] customer apology update"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: audience_alignment
+    field_coverage: tone_default_language_default
+  vars:
+    stage: outline
+    content: >-
+      Create a customer update presentation about a service outage: what happened at a high level,
+      what customers experienced, what we fixed, what prevention steps are next, and where to get support.
+    n_slides: 5
+    verbosity: concise
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact5_headings
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the default tone becomes clear, calm, accountable, and customer-safe without sounding defensive,
+        legalistic, or overly technical.
+        Score 0 if it blames customers, overpromises, or uses internal incident jargon as the main story.
+
+- description: "[rubric][language-auto][audience alignment] Spanish prompt no language field"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: audience_alignment
+    field_coverage: language_omitted_auto_detect
+  vars:
+    stage: outline
+    content: >-
+      Presentacion para alcaldias de America Latina sobre movilidad urbana: contexto,
+      retos de ultima milla, brechas de inversion y recomendaciones de politica publica.
+    n_slides: 4
+    tone: professional
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        const text = slides.map(s => s.content || '').join('\n').toLowerCase();
+        const tokens = [' de ', ' la ', ' en ', ' para ', ' movilidad ', ' politica '];
+        return slides.length === 4 && tokens.filter(t => text.includes(t)).length >= 4;
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief is in Spanish: {{content}}
+        Score 1 if the outline preserves Spanish as the dominant language and fits municipal policy audiences.
+        Score 0 if English dominates or the deck ignores the local-government context.
+
+- description: "[rubric][mixed-language][audience alignment] Hinglish student prompt"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: audience_alignment
+    field_coverage: language_auto_mixed_content
+  vars:
+    stage: outline
+    content: >-
+      college students ko explain karne ke liye fintech in Nepal ppt, simple language,
+      examples of digital wallet, QR payment, fraud safety, future opportunities
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /fintech|nepal|wallet|qr|fraud|student|safety/.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User brief mixes English and romanized Hindi/Nepali: {{content}}
+        Score 1 if the outline keeps the content simple for college students in Nepal and covers wallets, QR payments,
+        fraud safety, and opportunities without adding fake adoption statistics.
+        Score 0 if it ignores the Nepal/student framing or becomes jargon-heavy.
+
+- description: "[rubric][null-fields][audience alignment] patient education no tone language context"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: audience_alignment
+    field_coverage: null_language_tone_context
+  vars:
+    stage: outline
+    content: >-
+      Patient education deck about preparing for a first telehealth appointment:
+      checking the link, finding a private place, listing symptoms, medication list, and follow-up questions.
+    n_slides: 5
+    language: ""
+    tone: ""
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact5_headings
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline is patient-friendly, practical, and plain-language despite missing tone/language/context fields.
+        Score 0 if it becomes clinician-facing, legalistic, or too technical for patients.
+
+- description: "[rubric][good-no-context][slide coherence] product onboarding sequence"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: slide_coherence
+    field_coverage: empty_context
+  vars:
+    stage: outline
+    content: >-
+      Create a six-slide product onboarding presentation for new users of a project management app:
+      start with the user goal, then workspace setup, task creation, team collaboration, progress tracking,
+      and next steps for continued adoption.
+    n_slides: 6
+    language: English
+    tone: educational
+    verbosity: standard
+    instructions: "Make the slides build on each other. Avoid repeating the same generic benefits on every slide."
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact6_headings
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return ['goal', 'workspace', 'task', 'team', 'progress', 'next'].every(term => text.includes(term));
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline forms a coherent onboarding sequence where each slide depends naturally on the previous step,
+        avoids circular repetition, and ends with next steps.
+        Score 0 if the slides are interchangeable, repetitive, or jump between unrelated ideas.
+
+- description: "[rubric][bad-minimal][slide coherence] history of internet"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: slide_coherence
+    field_coverage: minimal_auto_count
+  vars:
+    stage: outline
+    content: "history of internet presentation"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User typed only: {{content}}
+        Score 1 if the outline has a chronological or otherwise coherent learning flow and avoids random disconnected trivia.
+        Score 0 if it jumps around without a clear timeline or repeats the same generic internet description.
+
+- description: "[rubric][messy-notes][slide coherence] incident response training"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: slide_coherence
+    field_coverage: messy_notes_no_instructions
+  vars:
+    stage: outline
+    content: >-
+      train support team incident stuff: customer says app down, check status, dont promise eta,
+      collect account id, escalate sev1, update every 30 min, after incident write notes. make deck.
+    n_slides: auto-detect
+    language: English
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User rough notes: {{content}}
+        Score 1 if the outline creates a coherent operational training flow from detection through escalation,
+        communication cadence, and post-incident notes, without inventing policy details.
+        Score 0 if steps are out of order or the outline is just a random checklist.
+
+- description: "[rubric][concise][visual content balance] quarterly metrics review"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: visual_content_balance
+    field_coverage: concise_explicit
+  vars:
+    stage: outline
+    content: >-
+      Build a five-slide quarterly metrics review for department leads. Cover summary, three KPI trends,
+      what changed operationally, priority risks, and next-quarter actions.
+    n_slides: 5
+    language: English
+    tone: professional
+    verbosity: concise
+    instructions: "Keep each slide concise: no dense paragraphs, no more than five bullets per slide, and use a table only if it improves comparison."
+    additional_context: "Audience: department leads with limited review time."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact5_headings
+    - &js_not_overloaded
+      type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        return slides.every(s => {
+          const c = s.content || '';
+          const bulletCount = (c.match(/(^|\n)\s*[-*]\s+/g) || []).length;
+          const longParagraph = c.split(/\n+/).some(line => line.trim().length > 280);
+          return bulletCount <= 6 && !longParagraph;
+        });
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline is slide-ready: concise headings, scannable bullets, no overloaded paragraphs,
+        and enough concrete direction for metrics review slides.
+        Score 0 if it is text-heavy, vague, visually impractical, or packs too many competing ideas per slide.
+
+- description: "[rubric][bad-pasted][visual content balance] pasted meeting notes into deck"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: visual_content_balance
+    field_coverage: pasted_notes_auto_count
+  vars:
+    stage: outline
+    content: >-
+      notes from meeting: q3 ops: warehouse picking errors better but returns still bad, drivers complain app,
+      packaging supplier late twice, csat comments mostly delivery window, finance wants no new spend,
+      need explain to leadership and have ask for one process owner maybe dashboard later idk
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - *js_not_overloaded
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User pasted messy notes: {{content}}
+        Score 1 if the outline condenses the notes into a readable leadership deck with balanced slide scope,
+        not a wall of text or every note crammed onto every slide.
+        Score 0 if it copies the mess directly or creates visually overloaded slides.
+
+- description: "[rubric][toc][visual content balance] agenda-heavy workshop"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: visual_content_balance
+    field_coverage: toc_enabled
+  vars:
+    stage: outline
+    content: >-
+      Create an internal workshop deck on improving release quality. Cover why quality slipped,
+      bug triage patterns, root-cause themes, team operating changes, and decisions needed today.
+    n_slides: 6
+    language: English
+    tone: professional
+    verbosity: concise
+    instructions: "Use the table of contents to preview the workshop flow, not as a duplicate of every slide."
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: true
+    web_search: false
+  assert:
+    - *js_exact6_headings
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /table of contents|agenda|workshop flow|contents/.test(text) &&
+          /quality|bug|triage|root|decision/.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User brief: {{content}}
+        Score 1 if the TOC/agenda is useful and the rest of the outline remains concise and not repetitive.
+        Score 0 if the TOC consumes the deck, duplicates all content, or creates an overloaded workshop outline.
+
+- description: "[rubric][current-web][factual integrity] current AI regulation with search"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: factual_integrity
+    field_coverage: web_search_enabled
+  vars:
+    stage: outline
+    content: >-
+      Create a leadership briefing on current AI regulation developments relevant to enterprise software vendors.
+      Cover what changed recently, compliance implications, product risks, and executive decisions.
+    n_slides: 5
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: "Use current information if needed. Do not include exact legal claims unless they can be supported."
+    additional_context: "Audience: software company executives."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: true
+  assert:
+    - *js_exact5_headings
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /ai|regulation|compliance|risk|decision|executive/.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief requires current context: {{content}}
+        Score 1 if the outline uses a cautious current-regulation framing, separates known developments from decisions/risks,
+        and avoids overconfident precise legal advice or unsupported dates.
+        Score 0 if it fabricates legal details, treats uncertain rules as final, or ignores compliance implications.
+
+- description: "[rubric][current-no-web][hallucination resistance] asks latest stock price but search disabled"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: hallucination_resistance
+    field_coverage: web_search_disabled_current_request
+  vars:
+    stage: outline
+    content: >-
+      make ppt on latest NVIDIA stock price today and why it moved, include exact current price and market cap
+    n_slides: auto-detect
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n');
+        return !/\$\s*\d+(\.\d+)?|\b\d+(\.\d+)?\s*(B|bn|billion|T|tn|trillion)\b/i.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User asks for current facts: {{content}}
+        Web search is disabled for this eval case.
+        Score 1 if the outline avoids fabricating exact live price/market-cap numbers and instead frames the deck around
+        what would need current verification.
+        Score 0 if it invents exact current financial data.
+
+- description: "[rubric][current-web][presentation usefulness] EV market update with search"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: presentation_usefulness
+    field_coverage: web_search_enabled_no_extra_context
+  vars:
+    stage: outline
+    content: >-
+      Build a market update presentation about EV adoption for auto parts suppliers.
+      Include recent demand signals, risks, supply-chain implications, and what suppliers should do next.
+    n_slides: 6
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: true
+  assert:
+    - *js_exact6_headings
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline is useful for auto parts suppliers: recent market signals, supplier-specific risks,
+        supply-chain implications, and practical next actions.
+        Score 0 if it becomes a generic EV explainer or fabricates unsourced precise market statistics.
+
+- description: "[rubric][conflicting][structural quality] content count conflicts with n_slides"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: structural_quality
+    field_coverage: conflicting_slide_count
+  vars:
+    stage: outline
+    content: >-
+      Need a 3 slide pitch: problem, solution, ask. Also maybe make it comprehensive with market, product,
+      customers, pricing, roadmap, risks, team, financials, and closing.
+    n_slides: 3
+    language: English
+    tone: sales_pitch
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        return slides.length === 3 && slides.every(s => /(^|\n)##\s+/.test(s.content || ''));
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User brief has conflicting detail but n_slides is explicitly 3: {{content}}
+        Score 1 if the outline respects exactly three slides and compresses the extra topics into a sensible problem/solution/ask pitch.
+        Score 0 if it ignores the explicit count or creates a bloated/incoherent structure.
+
+- description: "[rubric][bad-with-good-instructions][visual content balance] text-heavy topic constrained"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: visual_content_balance
+    field_coverage: bad_prompt_good_instructions
+  vars:
+    stage: outline
+    content: "make ppt on machine learning all details"
+    n_slides: 6
+    language: English
+    tone: educational
+    verbosity: concise
+    instructions: >-
+      Audience is non-technical managers. Keep it high level: what ML is, where it helps,
+      data requirements, risks, implementation path, and decision checklist. No equations.
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact6_headings
+    - *js_not_overloaded
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User content is overly broad: {{content}}
+        Instructions narrow it: {{instructions}}
+        Score 1 if the outline follows the managerial, concise framing and avoids equations, algorithm dumps, and overloaded slides.
+        Score 0 if it tries to cover all ML details or becomes technical coursework.
+
+- description: "[rubric][bad-minimal][factual integrity] Nepal ecommerce without fake stats"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: factual_integrity
+    field_coverage: minimal_context_in_content
+  vars:
+    stage: outline
+    content: "e-commerce in Nepal ppt"
+    n_slides: auto-detect
+    language: English
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n');
+        return /Nepal/i.test(text) &&
+          !/(\$|USD|NPR)\s*\d+|\d+(\.\d+)?\s*(%|percent|million|billion|crore|lakh)/i.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User typed: {{content}}
+        Score 1 if the outline keeps Nepal context visible across the deck while avoiding made-up market size,
+        GDP, user-count, payment-share, or growth statistics.
+        Score 0 if Nepal is token-only or unsupported numbers are invented.
+
+- description: "[rubric][good-no-extra-context][hallucination resistance] qualitative operations narrative"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: hallucination_resistance
+    field_coverage: no_context_no_instructions
+  vars:
+    stage: outline
+    content: >-
+      Quarterly operations narrative: better warehouse accuracy, wider carrier coverage,
+      improved customer delivery communication, and lower packaging waste. No quantitative financial disclosure is available.
+    n_slides: 4
+    language: English
+    tone: professional
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        const text = slides.map(s => s.content || '').join('\n');
+        return slides.length === 4 &&
+          !/(\$|€|£|\d+\s*(%|percent|million|billion|revenue|margin|savings))/i.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline stays qualitative and uses only the operational themes provided.
+        Score 0 if it invents financial, percentage, savings, headcount, or performance metrics.
+
+- description: "[rubric][good-with-instructions][slide coherence] grant proposal story"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: slide_coherence
+    field_coverage: good_prompt_good_instructions
+  vars:
+    stage: outline
+    content: >-
+      Build a grant proposal presentation for a library digital literacy program serving older adults.
+      Cover community need, program model, staffing, partner outreach, evaluation plan, and funding ask.
+    n_slides: 6
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: "Make the story move from need to solution to proof plan to ask. Do not invent grant amounts."
+    additional_context: "Audience: foundation reviewers."
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact6_headings
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline has a coherent grant narrative from need through model, staffing/partners,
+        evaluation, and ask, without invented dollar amounts.
+        Score 0 if it is unordered, missing the ask, or fabricates budget numbers.
+
+- description: "[rubric][bad-vague][presentation usefulness] resume into personal pitch"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: presentation_usefulness
+    field_coverage: vague_personal_prompt
+  vars:
+    stage: outline
+    content: "make presentation about me for promotion"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: llm-rubric
+      threshold: 0.68
+      value: >-
+        User typed only: {{content}}
+        Score 1 if the outline gives a useful promotion narrative structure (role, scope, achievements, leadership,
+        future contribution) without inventing the user's accomplishments, metrics, employer, or title.
+        Score 0 if it fabricates personal history or remains too generic to guide a real deck.
+
+- description: "[rubric][good-defaults][structural quality] startup investor update no advanced fields"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: structural_quality
+    field_coverage: only_core_fields
+  vars:
+    stage: outline
+    content: >-
+      Investor update for an early-stage startup: product progress, customer learning,
+      runway discipline, hiring priorities, key risks, and asks for investor help.
+    n_slides: 6
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact6_headings
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /product/.test(text) && /customer/.test(text) && /runway/.test(text) &&
+          /hiring/.test(text) && /risk/.test(text) && /ask|help/.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline preserves the investor update structure and creates a practical founder-to-investor flow.
+        Score 0 if it becomes a generic pitch deck or drops the investor-help ask.
+
+- description: "[rubric][bad-topic-only][audience alignment] mental health general audience"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: audience_alignment
+    field_coverage: topic_only
+  vars:
+    stage: outline
+    content: "mental health slides"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /mental|health|stigma|support|self-care|seek help|wellbeing/.test(text) &&
+          !/diagnose|medication dosage|clinical trial|DSM-5|treatment plan/.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User typed only: {{content}}
+        Score 1 if the outline is safe for a general audience: awareness, stigma, self-care, support, and when to seek help,
+        without giving diagnosis/treatment advice or fabricated clinical claims.
+        Score 0 if it becomes medical advice or invents research data.
+
+- description: "[rubric][bad-spelling][structural quality] renewable energy disadvantages"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: structural_quality
+    field_coverage: typo_prompt_auto_count
+  vars:
+    stage: outline
+    content: "renwable enargy ppt but only disadvantges and probems"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /renewable|energy|solar|wind|grid|storage/.test(text) &&
+          /disadvantage|limitation|challenge|risk|problem|intermittent|cost/.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User typed with spelling errors: {{content}}
+        Score 1 if the outline infers renewable energy and keeps the focus on disadvantages/challenges.
+        Score 0 if it ignores the disadvantage focus or wanders into unrelated energy topics.
+
+- description: "[rubric][good-no-title-slide][structural quality] training deck without title slide presenter"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: structural_quality
+    field_coverage: include_title_slide_false
+  vars:
+    stage: outline
+    content: >-
+      Four-slide internal training deck for new support agents: support principles,
+      ticket triage, escalation rules, and communication examples.
+    n_slides: 4
+    language: English
+    tone: educational
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: false
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - &js_exact4_headings
+      type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        return slides.length === 4 && slides.every(s => /(^|\n)##\s+/.test(s.content || ''));
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /support/.test(text) && /triage/.test(text) && /escalation/.test(text) &&
+          /communication|example/.test(text) && !/presenter:|presented by/i.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline has exactly four useful training slides and does not add presenter/title-slide metadata
+        when include_title_slide is false.
+        Score 0 if it adds presenter boilerplate or misses the training sequence.
+
+- description: "[rubric][bad-noisy][presentation usefulness] random capitalization and filler"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: presentation_usefulness
+    field_coverage: noisy_prompt
+  vars:
+    stage: outline
+    content: "PPTTTT ABOUT CUSTOMER SUCCESS !!!!!! need good stuff retention onboarding churn maybe"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /customer success|onboarding|retention|churn/.test(text);
+    - type: llm-rubric
+      threshold: 0.68
+      value: >-
+        User noisy prompt: {{content}}
+        Score 1 if the outline converts the noisy prompt into a practical customer-success deck around onboarding,
+        retention, churn risk, and operating actions without fabricating company metrics.
+        Score 0 if it mirrors the noise or becomes generic business filler.
+
+- description: "[rubric][good-exact][visual content balance] one-slide executive summary"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: visual_content_balance
+    field_coverage: single_slide
+  vars:
+    stage: outline
+    content: >-
+      Create one executive summary slide for leadership on migrating internal documentation to a new knowledge base.
+      Include why now, benefits, risks, and decision needed.
+    n_slides: 1
+    language: English
+    tone: professional
+    verbosity: concise
+    instructions: "Keep it one slide only and make it scannable."
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        if (slides.length !== 1) return false;
+        const c = slides[0].content || '';
+        const bulletCount = (c.match(/(^|\n)\s*[-*]\s+/g) || []).length;
+        return /(^|\n)##\s+/.test(c) && bulletCount <= 6 && !c.split(/\n+/).some(line => line.trim().length > 280);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the single slide is scannable and balances why now, benefits, risks, and decision needed.
+        Score 0 if it expands into multiple-slide thinking, crams too much text, or omits the decision.
+
+- description: "[rubric][bad-ambiguous][slide coherence] two possible meanings"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: slide_coherence
+    field_coverage: ambiguous_topic
+  vars:
+    stage: outline
+    content: "apple presentation for school"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: llm-rubric
+      threshold: 0.66
+      value: >-
+        User prompt is ambiguous: {{content}}
+        Score 1 if the outline chooses a reasonable school-safe interpretation and remains internally consistent
+        rather than mixing Apple Inc., fruit nutrition, agriculture, and unrelated topics together.
+        Score 0 if it blends incompatible interpretations into an incoherent deck or invents unsupported company facts.
+
+- description: "[rubric][bad-instructionless][hallucination resistance] competitor analysis with no competitors named"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: hallucination_resistance
+    field_coverage: no_instructions_missing_entities
+  vars:
+    stage: outline
+    content: "competitor analysis deck for my startup"
+    n_slides: auto-detect
+    language: English
+    tone: professional
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n');
+        return !/\b(Google|Microsoft|Amazon|Apple|Meta|OpenAI|Tesla|Uber|Airbnb)\b/.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User did not name a market or competitors: {{content}}
+        Score 1 if the outline provides a competitor-analysis framework without inventing named competitors,
+        market share, pricing, or positioning facts.
+        Score 0 if it fabricates a competitive set or specific claims.
+
+- description: "[rubric][good-negative-instruction][factual integrity] no URLs unless provided"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: factual_integrity
+    field_coverage: explicit_negative_instruction
+  vars:
+    stage: outline
+    content: >-
+      Build a presentation about our internal design system adoption. Discuss why consistency matters,
+      component reuse, governance, migration plan, and designer/developer enablement.
+    n_slides: 5
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: "Do not include URLs, external benchmarks, or named company examples."
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact5_headings
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n');
+        return !/http|www\.|Material Design|Carbon Design|Atlassian|Shopify|Microsoft|Google/i.test(text);
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Instructions: {{instructions}}
+        Score 1 if the outline stays internal and avoids URLs, external benchmarks, and named company examples.
+        Score 0 if it adds outside brands, benchmarks, or links.
+
+- description: "[rubric][good-auto][structural quality] count inferred from agenda list"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: structural_quality
+    field_coverage: auto_count_from_list
+  vars:
+    stage: outline
+    content: >-
+      Make a presentation with these sections: 1. opening promise, 2. current workflow pain,
+      3. target workflow, 4. migration steps, 5. support plan, 6. success measures.
+    n_slides: auto-detect
+    language: English
+    tone: professional
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact6_headings
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User content lists six sections: {{content}}
+        Score 1 if auto-detect maps those six sections to six coherent slides without adding unrelated chapters.
+        Score 0 if it ignores the listed structure or changes the count for no clear reason.
+
+- description: "[rubric][bad-contradictory-tone][audience alignment] funny but serious security training"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: audience_alignment
+    field_coverage: tone_conflict
+  vars:
+    stage: outline
+    content: >-
+      security awareness training for employees about phishing, password hygiene, reporting incidents,
+      and protecting customer data
+    n_slides: 5
+    language: English
+    tone: funny
+    verbosity: standard
+    instructions: "Keep it workplace-appropriate and do not trivialize customer data risk."
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact5_headings
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User brief: {{content}}
+        Tone is funny, but instructions require workplace-appropriate seriousness.
+        Score 1 if the outline is engaging without trivializing phishing, incidents, or customer data risk.
+        Score 0 if jokes undermine safety or the deck becomes unserious.
+
+- description: "[rubric][bad-extra-long][visual content balance] giant pasted wish list"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: visual_content_balance
+    field_coverage: long_unstructured_prompt
+  vars:
+    stage: outline
+    content: >-
+      make deck for new employee onboarding include company mission values history org chart tools slack jira github okrs benefits
+      security training payroll timesheets manager expectations team rituals product overview customers support process incident response
+      code review deployment calendar holidays office wifi remote work travel expense mentorship career growth faq and welcome message
+    n_slides: auto-detect
+    language: English
+    tone: educational
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - *js_not_overloaded
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User overloaded wish list: {{content}}
+        Score 1 if the outline clusters related onboarding topics into a manageable deck with balanced slides.
+        Score 0 if every item is crammed into dense slides or the organization is random.
+
+- description: "[rubric][current-web][factual integrity] current social platform trends"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: factual_integrity
+    field_coverage: web_search_enabled_default_tone
+  vars:
+    stage: outline
+    content: >-
+      Create a current social media trends briefing for a regional retail marketing team.
+      Include channel behavior shifts, content format implications, measurement risks, and practical next steps.
+    n_slides: 5
+    language: English
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: true
+  assert:
+    - *js_exact5_headings
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief asks for current trends: {{content}}
+        Score 1 if the outline is useful and cautious for retail marketers, focusing on trend categories,
+        implications, measurement risks, and next steps without unsupported precise platform statistics.
+        Score 0 if it fabricates exact current usage numbers or gives generic marketing basics only.
+
+- description: "[rubric][bad-minimal][slide coherence] cloud computing from topic only"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: slide_coherence
+    field_coverage: topic_only_auto_count
+  vars:
+    stage: outline
+    content: "need ppt for Cloud Computing"
+    n_slides: auto-detect
+    language: English
+    tone: default
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: llm-rubric
+      threshold: 0.68
+      value: >-
+        User typed: {{content}}
+        Score 1 if the outline creates a coherent general cloud computing introduction with concepts, service models,
+        benefits/risks, and adoption considerations, without invented vendor statistics or case studies.
+        Score 0 if it drifts off topic or hallucinates specifics.
+
+- description: "[rubric][bad-with-good-instructions][presentation usefulness] vague fundraising deck"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: presentation_usefulness
+    field_coverage: bad_prompt_good_instructions_no_context
+  vars:
+    stage: outline
+    content: "fundraising deck"
+    n_slides: 6
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: >-
+      Make it for a nonprofit after-school tutoring program. Cover community need, program design,
+      volunteer model, outcomes to track, funding use categories, and donor call to action.
+      Do not invent money raised, student counts, or named schools.
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact6_headings
+    - *js_no_fabricated_numbers_or_sources
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User content is vague: {{content}}
+        Instructions provide the real scenario: {{instructions}}
+        Score 1 if the outline follows the nonprofit tutoring fundraising story and avoids invented money,
+        student counts, named schools, or impact statistics.
+        Score 0 if it remains generic fundraising advice or fabricates proof.
+
+- description: "[rubric][good-no-language][audience alignment] technical postmortem for executives"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: audience_alignment
+    field_coverage: language_omitted_context_empty
+  vars:
+    stage: outline
+    content: >-
+      Executive postmortem presentation for a payment outage: customer impact summary,
+      root cause in plain English, remediation completed, prevention roadmap, and decisions needed.
+    n_slides: 5
+    tone: professional
+    verbosity: concise
+    instructions: "Keep technical detail understandable for non-engineering executives."
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_exact5_headings
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if the outline is executive-friendly, plain-English, accountable, and decision-oriented,
+        without deep debugging jargon or fake outage metrics.
+        Score 0 if it is too technical or invents incident facts.
+
+- description: "[rubric][bad-no-instructions][structural quality] academic topic only"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: structural_quality
+    field_coverage: topic_only_no_instructions
+  vars:
+    stage: outline
+    content: "photosynthesis"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n').toLowerCase();
+        return /photosynthesis|sunlight|carbon dioxide|water|glucose|oxygen|chlorophyll/.test(text);
+    - type: llm-rubric
+      threshold: 0.68
+      value: >-
+        User typed only: {{content}}
+        Score 1 if the outline creates a sensible educational flow from definition to process to importance,
+        without assuming a niche audience or inventing unrelated biology claims.
+        Score 0 if it is too advanced, too shallow, or incoherent.
+
+- description: "[rubric][good-in-content-count][visual content balance] three-slide tradeoff memo"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: visual_content_balance
+    field_coverage: count_in_content_auto
+  vars:
+    stage: outline
+    content: >-
+      Make exactly 3 slides for a leadership tradeoff memo on whether to build or buy analytics tooling:
+      context, option comparison, and recommendation.
+    n_slides: auto-detect
+    language: English
+    tone: professional
+    verbosity: concise
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const slides = (o && o.slides) || [];
+        const text = slides.map(s => s.content || '').join('\n').toLowerCase();
+        return slides.length === 3 && /context/.test(text) && /comparison|compare/.test(text) &&
+          /recommendation|recommend/.test(text);
+    - *js_not_overloaded
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief: {{content}}
+        Score 1 if auto-detect respects exactly three slides and keeps them concise and decision-oriented.
+        Score 0 if it expands unnecessarily or overloads the slides.
+
+- description: "[rubric][bad-current-no-web][hallucination resistance] latest AI tools list"
+  metadata:
+    prompt_tier: bad
+    rubric_dimension: hallucination_resistance
+    field_coverage: current_request_web_disabled
+  vars:
+    stage: outline
+    content: "latest AI tools in 2026 with prices and rankings ppt"
+    n_slides: auto-detect
+    verbosity: standard
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: false
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: javascript
+      value: |
+        const o = typeof output === 'string' ? JSON.parse(output) : output;
+        const text = ((o && o.slides) || []).map(s => s.content || '').join('\n');
+        return !/\$\s*\d+|ranked #?\d+|top\s+10|best\s+ranked/i.test(text);
+    - type: llm-rubric
+      threshold: 0.7
+      value: >-
+        User asks for latest prices/rankings: {{content}}
+        Web search is disabled.
+        Score 1 if the outline avoids inventing current prices/rankings and instead structures a comparison deck around categories,
+        evaluation criteria, and fields to verify.
+        Score 0 if it fabricates a ranked list or prices.
+
+- description: "[rubric][good-web][presentation usefulness] current hiring market briefing"
+  metadata:
+    prompt_tier: good
+    rubric_dimension: presentation_usefulness
+    field_coverage: web_search_enabled_auto_count
+  vars:
+    stage: outline
+    content: >-
+      Current hiring market briefing for startup founders: talent availability, compensation pressure,
+      remote work expectations, hiring risks, and recommended founder actions.
+    n_slides: auto-detect
+    language: English
+    tone: professional
+    verbosity: standard
+    instructions: ""
+    additional_context: ""
+    include_title_slide: true
+    include_table_of_contents: false
+    web_search: true
+  assert:
+    - *js_auto_headings_3_to_12
+    - type: llm-rubric
+      threshold: 0.72
+      value: >-
+        User brief asks for current hiring context: {{content}}
+        Score 1 if the outline is useful for startup founders and distinguishes market observations,
+        risks, and founder actions without unsupported exact salary numbers.
+        Score 0 if it is generic HR advice or fabricates precise current compensation data.
