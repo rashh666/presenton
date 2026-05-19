@@ -383,29 +383,36 @@ async def stream_presentation(
     image_generation_service = ImageGenerationService(get_images_directory())
 
     async def inner():
-        structure = presentation.get_structure()
-        layout = presentation.get_layout()
-        outline = presentation.get_presentation_outline()
-        image_urls_for_slides = get_images_for_slides_from_outline(outline.slides)
-
         async_assets_generation_tasks: List[asyncio.Task] = []
-        asset_events: asyncio.Queue = asyncio.Queue()
+        try:
+            structure = presentation.get_structure()
+            layout = presentation.get_layout()
+            outline = presentation.get_presentation_outline()
+            image_urls_for_slides = get_images_for_slides_from_outline(outline.slides)
 
-        async def notify_slide_assets_ready(slide_index: int, asset_task: asyncio.Task):
-            await asset_task
-            await asset_events.put(slide_index)
+            asset_events: asyncio.Queue = asyncio.Queue()
 
-        slides: List[SlideModel] = []
-        yield SSEResponse(
-            event="response",
-            data=json.dumps({"type": "chunk", "chunk": '{ "slides": [ '}),
-        ).to_string()
-        yielded_slide_asset_sse_count = 0
+            async def notify_slide_assets_ready(
+                slide_index: int, asset_task: asyncio.Task
+            ):
+                try:
+                    await asset_task
+                    await asset_events.put((slide_index, None))
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    await asset_events.put((slide_index, str(exc)))
 
-        for i, slide_layout_index in enumerate(structure.slides):
-            slide_layout = layout.slides[slide_layout_index]
+            slides: List[SlideModel] = []
+            yield SSEResponse(
+                event="response",
+                data=json.dumps({"type": "chunk", "chunk": '{ "slides": [ '}),
+            ).to_string()
+            yielded_slide_asset_sse_count = 0
 
-            try:
+            for i, slide_layout_index in enumerate(structure.slides):
+                slide_layout = layout.slides[slide_layout_index]
+
                 slide_content = await get_slide_content_from_type_and_outline(
                     slide_layout,
                     outline.slides[i],
@@ -414,49 +421,76 @@ async def stream_presentation(
                     presentation.verbosity,
                     presentation.instructions,
                 )
-            except HTTPException as e:
-                yield SSEErrorResponse(detail=e.detail).to_string()
-                return
 
-            slide = SlideModel(
-                presentation=id,
-                layout_group=layout.name,
-                layout=slide_layout.id,
-                index=i,
-                speaker_note=slide_content.get("__speaker_note__", ""),
-                content=slide_content,
-            )
-            slides.append(slide)
-
-            # This will mutate slide and add placeholder assets
-            process_slide_add_placeholder_assets(slide)
-
-            # This will mutate slide - start task immediately so it runs in parallel with next slide LLM generation
-            asset_task = asyncio.create_task(
-                process_slide_and_fetch_assets(
-                    image_generation_service,
-                    slide,
-                    outline_image_urls=(
-                        image_urls_for_slides[i]
-                        if i < len(image_urls_for_slides)
-                        else None
-                    ),
+                slide = SlideModel(
+                    presentation=id,
+                    layout_group=layout.name,
+                    layout=slide_layout.id,
+                    index=i,
+                    speaker_note=slide_content.get("__speaker_note__", ""),
+                    content=slide_content,
                 )
-            )
-            async_assets_generation_tasks.append(asset_task)
-            asyncio.create_task(notify_slide_assets_ready(i, asset_task))
+                slides.append(slide)
+
+                # This will mutate slide and add placeholder assets
+                process_slide_add_placeholder_assets(slide)
+
+                # This will mutate slide - start task immediately so it runs in
+                # parallel with next slide LLM generation.
+                asset_task = asyncio.create_task(
+                    process_slide_and_fetch_assets(
+                        image_generation_service,
+                        slide,
+                        outline_image_urls=(
+                            image_urls_for_slides[i]
+                            if i < len(image_urls_for_slides)
+                            else None
+                        ),
+                    )
+                )
+                async_assets_generation_tasks.append(asset_task)
+                asyncio.create_task(notify_slide_assets_ready(i, asset_task))
+
+                yield SSEResponse(
+                    event="response",
+                    data=json.dumps({"type": "chunk", "chunk": slide.model_dump_json()}),
+                ).to_string()
+
+                while True:
+                    try:
+                        done_idx, asset_error = asset_events.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    yielded_slide_asset_sse_count += 1
+                    if asset_error:
+                        yield SSEErrorResponse(
+                            detail=f"Failed to fetch assets for slide {done_idx + 1}: {asset_error}",
+                        ).to_string()
+                        continue
+                    yield SSEResponse(
+                        event="response",
+                        data=json.dumps(
+                            {
+                                "type": "slide_assets",
+                                "slide_index": done_idx,
+                                "slide": slides[done_idx].model_dump(mode="json"),
+                            }
+                        ),
+                    ).to_string()
 
             yield SSEResponse(
                 event="response",
-                data=json.dumps({"type": "chunk", "chunk": slide.model_dump_json()}),
+                data=json.dumps({"type": "chunk", "chunk": " ] }"}),
             ).to_string()
 
-            while True:
-                try:
-                    done_idx = asset_events.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
+            while yielded_slide_asset_sse_count < len(slides):
+                done_idx, asset_error = await asset_events.get()
                 yielded_slide_asset_sse_count += 1
+                if asset_error:
+                    yield SSEErrorResponse(
+                        detail=f"Failed to fetch assets for slide {done_idx + 1}: {asset_error}",
+                    ).to_string()
+                    continue
                 yield SSEResponse(
                     event="response",
                     data=json.dumps(
@@ -468,51 +502,59 @@ async def stream_presentation(
                     ),
                 ).to_string()
 
-        yield SSEResponse(
-            event="response",
-            data=json.dumps({"type": "chunk", "chunk": " ] }"}),
-        ).to_string()
+            generated_assets = []
+            generated_assets_lists = await asyncio.gather(
+                *async_assets_generation_tasks, return_exceptions=True
+            )
+            for assets_list in generated_assets_lists:
+                if isinstance(assets_list, Exception):
+                    logger.exception(
+                        "[presentation.stream] asset generation failed for presentation_id=%s",
+                        id,
+                        exc_info=(
+                            type(assets_list),
+                            assets_list,
+                            assets_list.__traceback__,
+                        ),
+                    )
+                    continue
+                generated_assets.extend(assets_list)
 
-        while yielded_slide_asset_sse_count < len(slides):
-            done_idx = await asset_events.get()
-            yielded_slide_asset_sse_count += 1
-            yield SSEResponse(
-                event="response",
-                data=json.dumps(
-                    {
-                        "type": "slide_assets",
-                        "slide_index": done_idx,
-                        "slide": slides[done_idx].model_dump(mode="json"),
-                    }
-                ),
+            # Moved this here to make sure new slides are generated before deleting
+            # the old ones.
+            await sql_session.execute(
+                delete(SlideModel).where(SlideModel.presentation == id)
+            )
+            await sql_session.commit()
+
+            sql_session.add(presentation)
+            sql_session.add_all(slides)
+            sql_session.add_all(generated_assets)
+            await sql_session.commit()
+
+            response = PresentationWithSlides(
+                **presentation.model_dump(),
+                slides=slides,
+                fonts=await _resolve_presentation_fonts(presentation, slides, sql_session),
+            )
+
+            yield SSECompleteResponse(
+                key="presentation",
+                value=response.model_dump(mode="json"),
             ).to_string()
-
-        generated_assets_lists = await asyncio.gather(*async_assets_generation_tasks)
-        generated_assets = []
-        for assets_list in generated_assets_lists:
-            generated_assets.extend(assets_list)
-
-        # Moved this here to make sure new slides are generated before deleting the old ones
-        await sql_session.execute(
-            delete(SlideModel).where(SlideModel.presentation == id)
-        )
-        await sql_session.commit()
-
-        sql_session.add(presentation)
-        sql_session.add_all(slides)
-        sql_session.add_all(generated_assets)
-        await sql_session.commit()
-
-        response = PresentationWithSlides(
-            **presentation.model_dump(),
-            slides=slides,
-            fonts=await _resolve_presentation_fonts(presentation, slides, sql_session),
-        )
-
-        yield SSECompleteResponse(
-            key="presentation",
-            value=response.model_dump(mode="json"),
-        ).to_string()
+        except HTTPException as e:
+            yield SSEErrorResponse(detail=e.detail).to_string()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            traceback.print_exc()
+            yield SSEErrorResponse(
+                detail="Failed to stream presentation. Please try again.",
+            ).to_string()
+        finally:
+            for task in async_assets_generation_tasks:
+                if not task.done():
+                    task.cancel()
 
     return StreamingResponse(inner(), media_type="text/event-stream")
 
