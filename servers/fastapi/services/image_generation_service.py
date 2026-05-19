@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import os
+from typing import Optional
 import aiohttp
 from fastapi import HTTPException
 from google import genai
@@ -95,6 +96,10 @@ class ImageGenerationService:
         try:
             if self.is_stock_provider_selected():
                 image_path = await self.image_gen_func(image_prompt)
+            elif self.image_gen_func is self.generate_image_comfyui and prompt.negative_prompt:
+                image_path = await self.generate_image_comfyui(
+                    image_prompt, self.output_directory, negative_prompt=prompt.negative_prompt
+                )
             else:
                 image_path = await self.image_gen_func(
                     image_prompt, self.output_directory
@@ -398,7 +403,9 @@ class ImageGenerationService:
                 return image_urls[0] if image_urls else ""
             return image_urls[:limit]
 
-    async def generate_image_comfyui(self, prompt: str, output_directory: str) -> str:
+    async def generate_image_comfyui(
+        self, prompt: str, output_directory: str, negative_prompt: Optional[str] = None
+    ) -> str:
         """
         Generate image using ComfyUI workflow API.
 
@@ -406,12 +413,14 @@ class ImageGenerationService:
         - COMFYUI_URL: ComfyUI server URL (e.g., http://192.168.1.7:8188)
         - COMFYUI_WORKFLOW: Workflow JSON exported from ComfyUI
 
-        The workflow should have a CLIPTextEncode node with "Positive" in the title
-        where the prompt will be injected.
+        The workflow should have a CLIPTextEncode node with title "Input Prompt"
+        where the positive prompt will be injected. Optionally a node titled
+        "Negative Prompt" for negative prompt injection.
 
         Args:
             prompt: The text prompt for image generation
             output_directory: Directory to save the generated image
+            negative_prompt: Optional negative prompt text (injected into "Negative Prompt" node)
 
         Returns:
             Path to the generated image file
@@ -438,6 +447,9 @@ class ImageGenerationService:
 
         # Find and update the positive prompt node
         workflow = self._inject_prompt_into_workflow(workflow, prompt)
+        # Inject negative prompt if provided and a matching node exists
+        if negative_prompt:
+            workflow = self._inject_negative_prompt_into_workflow(workflow, negative_prompt)
 
         async with aiohttp.ClientSession(trust_env=True) as session:
             # Step 1: Submit workflow
@@ -539,7 +551,33 @@ class ImageGenerationService:
             "Found 'Input Prompt', but no writable prompt string field was found directly or through linked nodes."
         )
 
+    def _inject_negative_prompt_into_workflow(self, workflow: dict, negative_prompt: str) -> dict:
+        """Inject negative_prompt into the first node whose _meta.title contains 'negative'."""
+        preferred_keys = ("text", "value", "prompt", "string", "content")
+        ignore_keys = {
+            "filename_prefix", "ckpt_name", "clip_name", "vae_name", "unet_name",
+            "sampler_name", "scheduler", "type", "device", "model", "lora_name",
+        }
 
+        for node_id, node_data in workflow.items():
+            if not isinstance(node_data, dict):
+                continue
+            title = str(node_data.get("_meta", {}).get("title", "")).strip().lower()
+            if "negative" not in title:
+                continue
+            inputs = node_data.setdefault("inputs", {})
+            for k in preferred_keys:
+                if k in inputs and isinstance(inputs[k], str):
+                    inputs[k] = negative_prompt
+                    return workflow
+            string_candidates = [
+                k for k, v in inputs.items()
+                if isinstance(v, str) and k not in ignore_keys
+            ]
+            if len(string_candidates) == 1:
+                inputs[string_candidates[0]] = negative_prompt
+                return workflow
+        return workflow
 
     async def _submit_comfyui_workflow(
         self, session: aiohttp.ClientSession, comfyui_url: str, workflow: dict

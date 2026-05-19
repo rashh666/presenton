@@ -17,6 +17,7 @@ async def process_slide_and_fetch_assets(
     slide: SlideModel,
     outline_image_urls: Optional[List[str]] = None,
     persona_image_suffix: Optional[str] = None,
+    persona_negative_prompt: Optional[str] = None,
 ) -> List[ImageAsset]:
 
     async_tasks = []
@@ -44,6 +45,7 @@ async def process_slide_and_fetch_assets(
                 ImagePrompt(
                     prompt=__image_prompt__parent["__image_prompt__"],
                     persona_suffix=persona_image_suffix or None,
+                    negative_prompt=persona_negative_prompt or None,
                 )
             )
         )
@@ -91,6 +93,7 @@ async def process_old_and_new_slides_and_fetch_assets(
     old_slide_content: dict,
     new_slide_content: dict,
     persona_image_suffix: Optional[str] = None,
+    persona_negative_prompt: Optional[str] = None,
 ) -> List[ImageAsset]:
     # Finds all old images
     old_image_dict_paths = get_dict_paths_with_key(
@@ -150,6 +153,7 @@ async def process_old_and_new_slides_and_fetch_assets(
                 ImagePrompt(
                     prompt=new_image["__image_prompt__"],
                     persona_suffix=persona_image_suffix or None,
+                    negative_prompt=persona_negative_prompt or None,
                 )
             )
         )

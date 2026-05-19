@@ -6,6 +6,7 @@ class ImagePrompt(BaseModel):
     prompt: str
     theme_prompt: Optional[str] = None
     persona_suffix: Optional[str] = None
+    negative_prompt: Optional[str] = None
 
     def get_image_prompt(self, with_theme: bool = False) -> str:
         parts = [self.prompt]

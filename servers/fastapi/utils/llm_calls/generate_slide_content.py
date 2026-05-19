@@ -90,20 +90,53 @@ def _get_schema_markdown(response_schema: Optional[dict]) -> str:
 def _build_persona_style_block(persona_config: Optional[dict]) -> str:
     if not persona_config:
         return ""
+    lines: list[str] = []
+
     text_gen = persona_config.get("text_generation", {})
     sentence_style = text_gen.get("sentence_style")
     slide_density = text_gen.get("slide_density")
     rhetorical = text_gen.get("rhetorical_devices")
-    if not any([sentence_style, slide_density, rhetorical]):
-        return ""
-    lines = ["# Persona Style Constraints:"]
-    if sentence_style:
-        lines.append(f"- Sentence Style: {sentence_style}")
-    if slide_density:
-        lines.append(f"- Slide Density: {slide_density}")
-    if rhetorical:
-        lines.append(f"- Preferred Rhetorical Devices: {', '.join(rhetorical)}")
-    return "\n".join(lines) + "\n"
+    if any([sentence_style, slide_density, rhetorical]):
+        lines.append("# Persona Style Constraints:")
+        if sentence_style:
+            lines.append(f"- Sentence Style: {sentence_style}")
+        if slide_density:
+            lines.append(f"- Slide Density: {slide_density}")
+        if rhetorical:
+            lines.append(f"- Preferred Rhetorical Devices: {', '.join(rhetorical)}")
+
+    slide_types = persona_config.get("slide_types", {})
+    if slide_types:
+        lines.append("# Slide Type Rules (apply to matching slide beat/purpose):")
+        for beat, rule in slide_types.items():
+            lines.append(f"- {beat}: {rule}")
+
+    pacing = persona_config.get("presentation_pacing", {})
+    if pacing:
+        spc = pacing.get("slides_per_chapter")
+        transition = pacing.get("transition_hint")
+        if spc or transition:
+            lines.append("# Presentation Pacing:")
+            if spc:
+                lines.append(f"- Slides per chapter: {spc}")
+            if transition:
+                lines.append(f"- Chapter transition: {transition}")
+
+    notes_cfg = persona_config.get("speaker_notes", {})
+    if notes_cfg:
+        style = notes_cfg.get("style")
+        length = notes_cfg.get("length")
+        cue = notes_cfg.get("include_transition_cue")
+        if any([style, length, cue is not None]):
+            lines.append("# Speaker Notes Style:")
+            if style:
+                lines.append(f"- Style: {style}")
+            if length:
+                lines.append(f"- Length: {length}")
+            if cue:
+                lines.append("- Include a transition cue at the end of each speaker note.")
+
+    return ("\n".join(lines) + "\n") if lines else ""
 
 
 def get_system_prompt(

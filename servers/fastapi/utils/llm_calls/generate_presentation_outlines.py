@@ -27,23 +27,87 @@ from utils.schema_utils import prepare_schema_for_validation
 def _build_persona_style_block(persona_config: Optional[dict]) -> str:
     if not persona_config:
         return ""
+    lines: list[str] = []
+
     text_gen = persona_config.get("text_generation", {})
     tone = text_gen.get("tone")
     sentence_style = text_gen.get("sentence_style")
     slide_density = text_gen.get("slide_density")
     rhetorical = text_gen.get("rhetorical_devices")
-    if not any([tone, sentence_style, slide_density, rhetorical]):
-        return ""
-    lines = ["# Persona Writing Style:"]
-    if tone:
-        lines.append(f"- Tone: {tone}")
-    if sentence_style:
-        lines.append(f"- Sentence Style: {sentence_style}")
-    if slide_density:
-        lines.append(f"- Slide Density: {slide_density}")
-    if rhetorical:
-        lines.append(f"- Preferred Rhetorical Devices: {', '.join(rhetorical)}")
-    return "\n".join(lines) + "\n"
+    if any([tone, sentence_style, slide_density, rhetorical]):
+        lines.append("# Persona Writing Style:")
+        if tone:
+            lines.append(f"- Tone: {tone}")
+        if sentence_style:
+            lines.append(f"- Sentence Style: {sentence_style}")
+        if slide_density:
+            lines.append(f"- Slide Density: {slide_density}")
+        if rhetorical:
+            lines.append(f"- Preferred Rhetorical Devices: {', '.join(rhetorical)}")
+
+    audience = persona_config.get("audience", {})
+    if audience:
+        primary = audience.get("primary")
+        expertise = audience.get("expertise_level")
+        domain = audience.get("domain")
+        if any([primary, expertise, domain]):
+            lines.append("# Target Audience:")
+            if primary:
+                lines.append(f"- Primary: {primary}")
+            if expertise:
+                lines.append(f"- Expertise Level: {expertise}")
+            if domain:
+                lines.append(f"- Domain: {domain}")
+
+    narrative = persona_config.get("narrative_engine", {})
+    if narrative:
+        framework = narrative.get("framework")
+        hook = narrative.get("opening_hook")
+        closing = narrative.get("closing_call")
+        if any([framework, hook, closing]):
+            lines.append("# Narrative Structure:")
+            if framework:
+                lines.append(f"- Framework: {framework}")
+            if hook:
+                lines.append(f"- Opening Hook: {hook}")
+            if closing:
+                lines.append(f"- Closing Call: {closing}")
+
+    biz = persona_config.get("business_logic", {})
+    if biz:
+        assumptions = biz.get("domain_assumptions", [])
+        avoid = biz.get("avoid_phrases", [])
+        if assumptions or avoid:
+            lines.append("# Business Logic:")
+            if assumptions:
+                lines.append(f"- Assumptions: {'; '.join(assumptions)}")
+            if avoid:
+                lines.append(f"- Avoid these phrases: {', '.join(avoid)}")
+
+    conf = persona_config.get("confidence_rules", {})
+    if conf:
+        uncertainty = conf.get("uncertainty_phrasing")
+        validation = conf.get("data_validation")
+        avoid_absolute = conf.get("avoid_absolute_claims")
+        if any([uncertainty, validation, avoid_absolute is not None]):
+            lines.append("# Confidence & Accuracy Rules:")
+            if uncertainty:
+                lines.append(f"- Uncertainty Phrasing: {uncertainty}")
+            if validation:
+                lines.append(f"- Data Validation: {validation}")
+            if avoid_absolute:
+                lines.append("- Avoid absolute claims; prefer qualified language.")
+
+    exec_mode = persona_config.get("executive_mode", {})
+    if exec_mode.get("enabled"):
+        max_s = exec_mode.get("max_slides")
+        hint = exec_mode.get("compression_hint")
+        if max_s:
+            lines.append(f"- CONSTRAINT: do not exceed {max_s} slides.")
+        if hint:
+            lines.append(f"- Compression approach: {hint}")
+
+    return ("\n".join(lines) + "\n") if lines else ""
 
 
 def get_system_prompt(

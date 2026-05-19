@@ -109,6 +109,21 @@ def _apply_palette_override(persona_config: dict, palette_override: str) -> dict
     return config
 
 
+def _build_negative_prompt(persona_config: Optional[dict]) -> Optional[str]:
+    """Build a negative prompt string from persona visual_rules."""
+    if not persona_config:
+        return None
+    visual_rules = persona_config.get("visual_rules", {})
+    if not visual_rules:
+        return None
+    terms: list[str] = list(visual_rules.get("negative_prompts", []))
+    if visual_rules.get("avoid_stock_photos") and "stock photo" not in " ".join(terms).lower():
+        terms.extend(["stock photo", "generic"])
+    if visual_rules.get("prefer_diagrams_over_people") and "people" not in " ".join(terms).lower():
+        terms.append("people faces")
+    return ", ".join(terms) if terms else None
+
+
 def _extract_custom_template_id(layout_name: Optional[str]) -> Optional[uuid.UUID]:
     if not layout_name or not layout_name.startswith("custom-"):
         return None
@@ -417,6 +432,7 @@ async def stream_presentation(
     persona_image_suffix = (
         persona_config.get("image_generation", {}).get("default_prompt_suffix") or None
     )
+    persona_negative_prompt = _build_negative_prompt(persona_config)
 
     image_generation_service = ImageGenerationService(get_images_directory())
 
@@ -481,6 +497,7 @@ async def stream_presentation(
                         else None
                     ),
                     persona_image_suffix=persona_image_suffix,
+                    persona_negative_prompt=persona_negative_prompt,
                 )
             )
             async_assets_generation_tasks.append(asset_task)
@@ -679,6 +696,7 @@ async def generate_presentation_handler(
         persona_image_suffix = (
             persona_config.get("image_generation", {}).get("default_prompt_suffix") or None
         )
+        persona_negative_prompt = _build_negative_prompt(persona_config)
 
         using_slides_markdown = False
         language_to_use = (request.language or "").strip() or None
@@ -977,6 +995,7 @@ async def generate_presentation_handler(
                         slide,
                         outline_image_urls=image_urls_for_batch[offset],
                         persona_image_suffix=persona_image_suffix,
+                        persona_negative_prompt=persona_negative_prompt,
                     )
                 )
                 for offset, slide in enumerate(batch_slides)

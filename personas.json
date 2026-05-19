@@ -13,6 +13,50 @@
         "top_p": 0.1
       }
     },
+    "audience": {
+      "primary": "C-suite executives, senior managers, board members",
+      "expertise_level": "high — skip basics, go straight to implications",
+      "domain": "technology, strategy, finance"
+    },
+    "narrative_engine": {
+      "framework": "problem-solution-impact",
+      "opening_hook": "lead with the challenge or the number that hurts",
+      "closing_call": "clear next step, decision, or ask"
+    },
+    "slide_types": {
+      "problem": "start with the pain point, not the background",
+      "solution": "lead with the answer, explain afterwards",
+      "data": "one key number per slide, context around it",
+      "call_to_action": "single crisp ask, deadline visible"
+    },
+    "business_logic": {
+      "domain_assumptions": ["ROI in months not years", "no vanity metrics"],
+      "avoid_phrases": ["synergy", "leverage", "game-changer", "disruptive", "holistic approach"]
+    },
+    "confidence_rules": {
+      "uncertainty_phrasing": "use ranges not point estimates; say 'likely' not 'will'",
+      "data_validation": "flag projections with (est.) or (proj.)",
+      "avoid_absolute_claims": true
+    },
+    "visual_rules": {
+      "prefer_diagrams_over_people": true,
+      "avoid_stock_photos": true,
+      "negative_prompts": ["realistic photo", "photorealistic", "stock photo", "generic people", "human faces", "office workers"]
+    },
+    "presentation_pacing": {
+      "slides_per_chapter": 3,
+      "transition_hint": "end each chapter with a one-line insight, not a summary slide"
+    },
+    "speaker_notes": {
+      "style": "delivery cues and anticipated objections, not a script",
+      "length": "3-5 sentences per slide",
+      "include_transition_cue": true
+    },
+    "executive_mode": {
+      "enabled": true,
+      "max_slides": 10,
+      "compression_hint": "merge similar points, cut background slides, lead with conclusion"
+    },
     "visual_layout": {
       "typography": {
         "title": "Inter Bold",
@@ -44,6 +88,49 @@
         "temperature": 0.8,
         "top_p": 0.95
       }
+    },
+    "audience": {
+      "primary": "innovation teams, creative directors, product leads",
+      "expertise_level": "medium — assume curiosity but not deep domain knowledge",
+      "domain": "product, design, culture"
+    },
+    "narrative_engine": {
+      "framework": "hero's journey compressed",
+      "opening_hook": "start with a provocative question or unexpected observation",
+      "closing_call": "leave with a memorable image or idea, not a checklist"
+    },
+    "slide_types": {
+      "insight": "one bold statement, space to breathe",
+      "story": "3-act compressed — tension, pivot, resolution",
+      "data": "humanise the number — what does it mean for one person"
+    },
+    "business_logic": {
+      "domain_assumptions": ["ideas before process", "culture as competitive advantage"],
+      "avoid_phrases": ["ROI", "KPI", "best practice", "low-hanging fruit"]
+    },
+    "confidence_rules": {
+      "uncertainty_phrasing": "embrace speculation explicitly — frame as hypothesis not fact",
+      "data_validation": "cite source in speaker note, not on slide",
+      "avoid_absolute_claims": false
+    },
+    "visual_rules": {
+      "prefer_diagrams_over_people": false,
+      "avoid_stock_photos": true,
+      "negative_prompts": ["stock photo", "corporate", "generic smile", "handshake", "office meeting"]
+    },
+    "presentation_pacing": {
+      "slides_per_chapter": 4,
+      "transition_hint": "use a visual pause — just an image, no text — between chapters"
+    },
+    "speaker_notes": {
+      "style": "storytelling prompts and emotional beats",
+      "length": "2-4 sentences per slide",
+      "include_transition_cue": false
+    },
+    "executive_mode": {
+      "enabled": false,
+      "max_slides": 15,
+      "compression_hint": "preserve the emotional arc even if content is cut"
     },
     "visual_layout": {
       "typography": {
