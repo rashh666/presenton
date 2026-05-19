@@ -12,6 +12,7 @@ import {
   Check,
   X,
   AlertTriangle,
+  Copy,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -306,6 +307,32 @@ const PresentationHeader = ({
       setIsExporting(false);
     }
   };
+  const handleCopyText = async () => {
+    if (!presentationData?.slides) return;
+    const extractStrings = (obj: any, depth = 0): string[] => {
+      if (!obj || depth > 6) return [];
+      if (typeof obj === "string") return [obj];
+      if (Array.isArray(obj)) return obj.flatMap((v) => extractStrings(v, depth + 1));
+      if (typeof obj === "object") {
+        return Object.entries(obj).flatMap(([k, v]) =>
+          k.startsWith("__") ? [] : extractStrings(v, depth + 1)
+        );
+      }
+      return [];
+    };
+    const lines = presentationData.slides.map((slide: any, i: number) => {
+      const texts = extractStrings(slide.content).filter((s) => s.trim().length > 0);
+      return `## Slide ${i + 1}\n${texts.join("\n")}`;
+    });
+    const markdown = lines.join("\n\n");
+    try {
+      await navigator.clipboard.writeText(markdown);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
   const handleReGenerate = () => {
     setIsRegenerateConfirmOpen(false);
     dispatch(clearPresentationData());
@@ -512,6 +539,17 @@ const PresentationHeader = ({
                 }}
               >
                 <Redo2 className="w-3.5 h-3.5 text-[#101323] group-hover:text-[#5141e5] duration-300" />
+              </button>
+            </ToolTip>
+            <Separator orientation="vertical" className="h-4 w-[2px]" />
+            <ToolTip content="Copy all text to clipboard">
+              <button
+                type="button"
+                onClick={handleCopyText}
+                disabled={isStreaming || !presentationData?.slides?.length}
+                className="disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group"
+              >
+                <Copy className="w-3.5 h-3.5 text-[#101323] group-hover:text-[#5141e5] duration-300" />
               </button>
             </ToolTip>
             <Separator orientation="vertical" className="h-4 w-[2px]" />

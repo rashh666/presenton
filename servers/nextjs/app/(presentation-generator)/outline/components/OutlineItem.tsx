@@ -122,8 +122,14 @@ export function OutlineItem({
         <div
             ref={setNodeRef}
             style={style}
-            className={`mb-4 bg-white rounded-[12px] group shadow-sm p-10 relative font-syne transition-all duration-500 hover:shadow-[0_6.6px_13.2px_0_rgba(0,0,0,0.10)] ${isDragging ? "opacity-50" : ""}`}
+            className={`mb-4 bg-white rounded-[12px] group shadow-sm p-10 relative font-syne transition-all duration-500 hover:shadow-[0_6.6px_13.2px_0_rgba(0,0,0,0.10)] ${isDragging ? "opacity-50" : ""} ${isActiveStreaming ? "ring-2 ring-violet-400 ring-offset-1" : ""}`}
         >
+            {isActiveStreaming && (
+                <span className="absolute -top-2 -right-2 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-violet-500" />
+                </span>
+            )}
 
             <div
                 className="flex items-start gap-3 md:gap-4 rounded-[8px]"

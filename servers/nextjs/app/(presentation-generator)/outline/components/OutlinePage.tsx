@@ -91,6 +91,7 @@ const OutlinePage: React.FC = () => {
                   highestActiveIndex={streamState.highestActiveIndex}
                   onDragEnd={handleDragEnd}
                   onAddSlide={handleAddSlide}
+                  totalSlides={outlines ? outlines.length : null}
                 />
               </TabsContent>
 

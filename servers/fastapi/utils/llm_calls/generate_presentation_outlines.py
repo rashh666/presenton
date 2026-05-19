@@ -24,10 +24,33 @@ from utils.llm_utils import (
 from utils.schema_utils import prepare_schema_for_validation
 
 
+def _build_persona_style_block(persona_config: Optional[dict]) -> str:
+    if not persona_config:
+        return ""
+    text_gen = persona_config.get("text_generation", {})
+    tone = text_gen.get("tone")
+    sentence_style = text_gen.get("sentence_style")
+    slide_density = text_gen.get("slide_density")
+    rhetorical = text_gen.get("rhetorical_devices")
+    if not any([tone, sentence_style, slide_density, rhetorical]):
+        return ""
+    lines = ["# Persona Writing Style:"]
+    if tone:
+        lines.append(f"- Tone: {tone}")
+    if sentence_style:
+        lines.append(f"- Sentence Style: {sentence_style}")
+    if slide_density:
+        lines.append(f"- Slide Density: {slide_density}")
+    if rhetorical:
+        lines.append(f"- Preferred Rhetorical Devices: {', '.join(rhetorical)}")
+    return "\n".join(lines) + "\n"
+
+
 def get_system_prompt(
     verbosity: Optional[str] = None,
     include_title_slide: bool = True,
     include_table_of_contents: bool = False,
+    persona_config: Optional[dict] = None,
 ):
     verbosity_instruction = (
         "Slide content should be around 20 words but detailed enough to generate a good slide."
@@ -61,6 +84,8 @@ def get_system_prompt(
         "   - First slide title must be the same as the presentation title."
     )
 
+    persona_style_block = _build_persona_style_block(persona_config)
+
     system = (
         "Generate presentation title and content for slides.\n"
         "Generate flow based on user **content** and use **context** just for reference.\n"
@@ -87,6 +112,7 @@ def get_system_prompt(
         "Make sure data is consistent across all slides."
         "Use the web search tool when the user request requires current, factual, or external information.\n"
         "If the answer may be outdated or uncertain, prefer using the web search tool.\n"
+        f"{persona_style_block}"
     )
 
     return system
@@ -145,6 +171,7 @@ def get_messages(
     instructions: Optional[str] = None,
     include_title_slide: bool = True,
     include_table_of_contents: bool = False,
+    persona_config: Optional[dict] = None,
 ) -> list[Message]:
     return [
         SystemMessage(
@@ -152,6 +179,7 @@ def get_messages(
                 verbosity,
                 include_title_slide,
                 include_table_of_contents,
+                persona_config,
             ),
         ),
         UserMessage(
@@ -180,6 +208,7 @@ async def generate_ppt_outline(
     include_title_slide: bool = True,
     web_search: bool = False,
     include_table_of_contents: bool = False,
+    persona_config: Optional[dict] = None,
 ):
     model = get_model()
     response_model = (
@@ -190,6 +219,11 @@ async def generate_ppt_outline(
 
     client = get_client(config=get_llm_config())
     use_search_tool = web_search
+
+    persona_text_gen = (persona_config or {}).get("text_generation", {})
+    persona_hallucination = persona_text_gen.get("hallucination", {})
+    persona_temperature = persona_hallucination.get("temperature")
+    persona_top_p = persona_hallucination.get("top_p")
 
     try:
         outline_schema = prepare_schema_for_validation(
@@ -216,10 +250,13 @@ async def generate_ppt_outline(
                     instructions,
                     include_title_slide,
                     include_table_of_contents,
+                    persona_config,
                 ),
                 response_format=response_format,
                 tools=([WebSearchTool()] if use_search_tool else None),
                 stream=True,
+                temperature=persona_temperature,
+                top_p=persona_top_p,
             ),
         ):
             if getattr(event, "type", None) == "content":

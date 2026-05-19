@@ -133,6 +133,11 @@ const PresentationPage: React.FC<PresentationPageProps> = ({
     if (!theme) return;
     const el = document.getElementById("presentation-slides-wrapper");
     applyPresentationThemeToElement(el, theme);
+    // Apply session palette override on top of theme colours
+    const paletteOverride = typeof window !== "undefined" ? localStorage.getItem("paletteOverride") : null;
+    if (paletteOverride && el) {
+      el.style.setProperty("--primary-color", paletteOverride);
+    }
   }, [isPresentMode, presentationData?.theme]);
 
   const onSlideChange = (newSlide: number) => {

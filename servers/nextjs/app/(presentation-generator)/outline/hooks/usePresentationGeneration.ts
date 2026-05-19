@@ -162,11 +162,13 @@ export const usePresentationGeneration = (
         };
       }
 
+      const personaKey = typeof window !== "undefined" ? localStorage.getItem("selectedPersona") : null;
+      const paletteOverride = typeof window !== "undefined" ? localStorage.getItem("paletteOverride") : null;
       const response = await PresentationGenerationApi.presentationPrepare({
         presentation_id: presentationId,
         outlines: outlines,
         layout: layout,
-      });
+      }, personaKey, paletteOverride);
 
       if (response) {
         dispatch(clearPresentationData());

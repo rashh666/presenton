@@ -87,11 +87,31 @@ def _get_schema_markdown(response_schema: Optional[dict]) -> str:
     return f"- Follow this response schema exactly: {schema_text}"
 
 
+def _build_persona_style_block(persona_config: Optional[dict]) -> str:
+    if not persona_config:
+        return ""
+    text_gen = persona_config.get("text_generation", {})
+    sentence_style = text_gen.get("sentence_style")
+    slide_density = text_gen.get("slide_density")
+    rhetorical = text_gen.get("rhetorical_devices")
+    if not any([sentence_style, slide_density, rhetorical]):
+        return ""
+    lines = ["# Persona Style Constraints:"]
+    if sentence_style:
+        lines.append(f"- Sentence Style: {sentence_style}")
+    if slide_density:
+        lines.append(f"- Slide Density: {slide_density}")
+    if rhetorical:
+        lines.append(f"- Preferred Rhetorical Devices: {', '.join(rhetorical)}")
+    return "\n".join(lines) + "\n"
+
+
 def get_system_prompt(
     tone: Optional[str] = None,
     verbosity: Optional[str] = None,
     instructions: Optional[str] = None,
     response_schema: Optional[dict] = None,
+    persona_config: Optional[dict] = None,
 ):
     markdown_emphasis_rules = (
         "- Strictly use markdown to emphasize important points, by bolding or "
@@ -99,8 +119,11 @@ def get_system_prompt(
     )
 
     user_instructions = f"# User Instructions:\n{instructions}" if instructions else ""
+
+    persona_tone = (persona_config or {}).get("text_generation", {}).get("tone") if persona_config else None
+    effective_tone = persona_tone or tone
     tone_instructions = (
-        f"# Tone Instructions:\nMake slide as {tone} as possible." if tone else ""
+        f"# Tone Instructions:\nMake slide as {effective_tone} as possible." if effective_tone else ""
     )
 
     verbosity_instructions = ""
@@ -113,6 +136,8 @@ def get_system_prompt(
         elif verbosity == "text-heavy":
             verbosity_instructions += "Make slide as text-heavy as possible."
 
+    persona_style_block = _build_persona_style_block(persona_config)
+
     output_fields_instructions = "# Output Fields:\n" + _get_schema_markdown(
         response_schema
     )
@@ -120,7 +145,7 @@ def get_system_prompt(
     return SLIDE_CONTENT_SYSTEM_PROMPT.format(
         markdown_emphasis_rules=markdown_emphasis_rules,
         user_instructions=user_instructions,
-        tone_instructions=tone_instructions,
+        tone_instructions=tone_instructions + ("\n" + persona_style_block if persona_style_block else ""),
         verbosity_instructions=verbosity_instructions,
         output_fields_instructions=output_fields_instructions,
     )
@@ -141,6 +166,7 @@ def get_messages(
     verbosity: Optional[str] = None,
     instructions: Optional[str] = None,
     response_schema: Optional[dict] = None,
+    persona_config: Optional[dict] = None,
 ) -> list[Message]:
 
     return [
@@ -150,6 +176,7 @@ def get_messages(
                 verbosity,
                 instructions,
                 response_schema,
+                persona_config,
             ),
         ),
         UserMessage(
@@ -165,9 +192,17 @@ async def get_slide_content_from_type_and_outline(
     tone: Optional[str] = None,
     verbosity: Optional[str] = None,
     instructions: Optional[str] = None,
+    persona_config: Optional[dict] = None,
 ):
     client = get_client(config=get_llm_config())
     model = get_model()
+
+    persona_text_gen = (persona_config or {}).get("text_generation", {})
+    persona_hallucination = persona_text_gen.get("hallucination", {})
+    persona_temperature = persona_hallucination.get("temperature")
+    persona_top_p = persona_hallucination.get("top_p")
+    reflection_enabled = persona_hallucination.get("reflection_enabled", True)
+    reflection_max_iterations = int(persona_hallucination.get("reflection_max_iterations", 4))
 
     response_schema = remove_fields_from_schema(
         slide_layout.json_schema, ["__image_url__", "__icon_url__"]
@@ -199,6 +234,7 @@ async def get_slide_content_from_type_and_outline(
             verbosity,
             instructions,
             response_schema,
+            persona_config,
         )
 
         return await generate_structured_with_schema_retries(
@@ -208,7 +244,10 @@ async def get_slide_content_from_type_and_outline(
             response_format=response_format,
             json_schema=response_schema,
             strict=False,
-            validate_schema=True,
+            validate_schema=reflection_enabled,
+            validate_schema_max_loop_count=reflection_max_iterations,
+            temperature=persona_temperature,
+            top_p=persona_top_p,
         )
 
     except Exception as e:

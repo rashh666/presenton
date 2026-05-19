@@ -1,0 +1,64 @@
+{
+  "rashid_strict": {
+    "description": "My corporate signature – tight, consistent, minimal",
+    "text_generation": {
+      "tone": "direct, confident, slightly technical, no filler words",
+      "sentence_style": "short to medium sentences, active voice, no complex subordinate clauses",
+      "slide_density": "sparse – max 5 bullets, each bullet max 12 words",
+      "rhetorical_devices": ["rule of three", "rhetorical question", "callback"],
+      "hallucination": {
+        "reflection_enabled": true,
+        "reflection_max_iterations": 2,
+        "temperature": 0.0,
+        "top_p": 0.1
+      }
+    },
+    "visual_layout": {
+      "typography": {
+        "title": "Inter Bold",
+        "body": "Inter Regular"
+      },
+      "visual_palette": ["#1E3A5F", "#2D9CDB", "#F2F2F2", "#E74C3C"],
+      "layout_bias": "full-image + title at top-left, colour bar at bottom"
+    },
+    "image_generation": {
+      "default_prompt_suffix": "Rashid signature sketch: clean lines, blue accent, white background, minimalist corporate pencil sketch, abstract line art, architectural lines, monochromatic, simple"
+    },
+    "post_processing": {
+      "signature_watermark": "/app_data/rashid_logo.png",
+      "add_bottom_color_bar": true,
+      "bottom_bar_color_index": 1,
+      "fixed_margins": { "top": 0.5, "right": 0.5, "bottom": 0.5, "left": 0.5 }
+    }
+  },
+  "rashid_creative": {
+    "description": "Experimental / brainstorming mode – looser, more expressive",
+    "text_generation": {
+      "tone": "provocative, imaginative, story-driven",
+      "sentence_style": "varied length, metaphors allowed, occasional fragments",
+      "slide_density": "moderate – up to 7 bullets, poetic",
+      "rhetorical_devices": ["anaphora", "metaphor", "rule of three"],
+      "hallucination": {
+        "reflection_enabled": false,
+        "reflection_max_iterations": 1,
+        "temperature": 0.8,
+        "top_p": 0.95
+      }
+    },
+    "visual_layout": {
+      "typography": {
+        "title": "Georgia Bold",
+        "body": "Georgia"
+      },
+      "visual_palette": ["#2C3E50", "#E67E22", "#ECF0F1", "#C0392B"],
+      "layout_bias": "full-page image overlay"
+    },
+    "image_generation": {
+      "default_prompt_suffix": "surreal, creative, expressive lines, abstract, dreamy"
+    },
+    "post_processing": {
+      "signature_watermark": "/app_data/rashid_creative_logo.png",
+      "add_bottom_color_bar": false
+    }
+  }
+}

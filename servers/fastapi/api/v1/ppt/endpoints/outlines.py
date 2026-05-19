@@ -3,7 +3,8 @@ import json
 import traceback
 import uuid
 import dirtyjson
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,18 +31,25 @@ from utils.llm_calls.generate_presentation_outlines import (
     generate_ppt_outline,
     get_messages as get_outline_messages,
 )
+from utils.personas import get_persona
 
 OUTLINES_ROUTER = APIRouter(prefix="/outlines", tags=["Outlines"])
 
 
 @OUTLINES_ROUTER.get("/stream/{id}")
 async def stream_outlines(
-    id: uuid.UUID, sql_session: AsyncSession = Depends(get_async_session)
+    request: Request,
+    id: uuid.UUID,
+    persona: Optional[str] = Query(default=None),
+    sql_session: AsyncSession = Depends(get_async_session),
 ):
     presentation = await sql_session.get(PresentationModel, id)
 
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
+
+    persona_key = request.headers.get("x-persona") or persona
+    persona_config = get_persona(persona_key)
 
     temp_dir = TEMP_FILE_SERVICE.create_temp_dir()
 
@@ -111,6 +119,7 @@ async def stream_outlines(
             presentation.include_title_slide,
             presentation.web_search,
             presentation.include_table_of_contents,
+            persona_config=persona_config,
         ):
             # Give control to the event loop
             await asyncio.sleep(0)

@@ -137,12 +137,18 @@ async def generate_presentation_structure(
     presentation_layout: PresentationLayoutModel,
     instructions: Optional[str] = None,
     using_slides_markdown: bool = False,
+    persona_config: Optional[dict] = None,
 ) -> PresentationStructureModel:
     client = get_client(config=get_llm_config())
     model = get_model()
     response_model = get_presentation_structure_model_with_n_slides(
         len(presentation_outline.slides)
     )
+
+    persona_text_gen = (persona_config or {}).get("text_generation", {})
+    persona_hallucination = persona_text_gen.get("hallucination", {})
+    persona_temperature = persona_hallucination.get("temperature")
+    persona_top_p = persona_hallucination.get("top_p")
 
     try:
         messages = (
@@ -178,6 +184,8 @@ async def generate_presentation_structure(
             json_schema=structure_schema,
             strict=True,
             validate_schema=True,
+            temperature=persona_temperature,
+            top_p=persona_top_p,
         )
         return PresentationStructureModel(**content)
     except Exception as e:

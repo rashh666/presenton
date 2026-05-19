@@ -179,8 +179,14 @@ export const usePresentationStreaming = (
 
     const openStream = () => {
       closeEventSource();
+      const personaKey = typeof window !== "undefined" ? localStorage.getItem("selectedPersona") : null;
+      const paletteOverride = typeof window !== "undefined" ? localStorage.getItem("paletteOverride") : null;
+      const params = new URLSearchParams();
+      if (personaKey) params.set("persona", personaKey);
+      if (paletteOverride) params.set("palette_override", paletteOverride);
+      const queryString = params.toString() ? `?${params.toString()}` : "";
       eventSource = new EventSource(
-        getApiUrl(`/api/v1/ppt/presentation/stream/${presentationId}`)
+        getApiUrl(`/api/v1/ppt/presentation/stream/${presentationId}${queryString}`)
       );
 
       eventSource.addEventListener("response", (event) => {
@@ -255,6 +261,9 @@ export const usePresentationStreaming = (
               closeEventSource();
               clearRetryTimer();
               retryCount = 0;
+              toast.success("Presentation ready", {
+                description: "Your slides have been generated. Images are loading in the background.",
+              });
 
               // Remove stream parameter from URL
               const newUrl = new URL(window.location.href);
@@ -308,6 +317,7 @@ export const usePresentationStreaming = (
     dispatch(setStreaming(true));
     dispatch(clearPresentationData());
     trackEvent(MixpanelEvent.Presentation_Stream_API_Call);
+    toast.info("Generating slides...", { description: "This may take a minute." });
     openStream();
 
     return () => {

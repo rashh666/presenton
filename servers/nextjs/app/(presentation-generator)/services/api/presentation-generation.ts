@@ -65,7 +65,7 @@ export class PresentationGenerationApi {
     include_table_of_contents,
     include_title_slide,
     web_search,
-    
+    personaKey,
   }: {
     content: string;
     n_slides: number | null;
@@ -77,13 +77,15 @@ export class PresentationGenerationApi {
     include_table_of_contents?: boolean;
     include_title_slide?: boolean;
     web_search?: boolean;
+    personaKey?: string | null;
+    paletteOverride?: string | null;
   }) {
     try {
       const response = await fetch(
         getApiUrl(`/api/v1/ppt/presentation/create`),
         {
           method: "POST",
-          headers: getHeader(),
+          headers: getHeader(personaKey, paletteOverride),
           body: JSON.stringify({
             content,
             n_slides,
@@ -151,13 +153,13 @@ export class PresentationGenerationApi {
     }
   }
 
-  static async presentationPrepare(presentationData: any) {
+  static async presentationPrepare(presentationData: any, personaKey?: string | null, paletteOverride?: string | null) {
     try {
       const response = await fetch(
         getApiUrl(`/api/v1/ppt/presentation/prepare`),
         {
           method: "POST",
-          headers: getHeader(),
+          headers: getHeader(personaKey, paletteOverride),
           body: JSON.stringify(presentationData),
           cache: "no-cache",
         }
@@ -208,6 +210,40 @@ export class PresentationGenerationApi {
     }
   }
   
+  static async regenerateSlide(slideId: string, personaKey?: string | null) {
+    try {
+      const response = await fetch(
+        getApiUrl(`/api/v1/ppt/slide/regenerate/${slideId}`),
+        {
+          method: "POST",
+          headers: getHeader(personaKey),
+          cache: "no-cache",
+        }
+      );
+      return await ApiResponseHandler.handleResponse(response, "Failed to regenerate slide");
+    } catch (error) {
+      console.error("error in slide regenerate", error);
+      throw error;
+    }
+  }
+
+  static async proofreadSlide(slideId: string) {
+    try {
+      const response = await fetch(
+        getApiUrl(`/api/v1/ppt/slide/proofread/${slideId}`),
+        {
+          method: "POST",
+          headers: getHeader(),
+          cache: "no-cache",
+        }
+      );
+      return await ApiResponseHandler.handleResponse(response, "Failed to proofread slide");
+    } catch (error) {
+      console.error("error in slide proofread", error);
+      throw error;
+    }
+  }
+
   static async searchIcons(iconSearch: IconSearch) {
     try {
       const response = await fetch(

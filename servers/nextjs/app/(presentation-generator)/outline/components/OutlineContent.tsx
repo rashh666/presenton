@@ -25,6 +25,7 @@ interface OutlineContentProps {
     highestActiveIndex: number;
     onDragEnd: (event: any) => void;
     onAddSlide: () => void;
+    totalSlides?: number | null;
 }
 
 const OutlineContent: React.FC<OutlineContentProps> = ({
@@ -34,8 +35,12 @@ const OutlineContent: React.FC<OutlineContentProps> = ({
     activeSlideIndex,
     highestActiveIndex,
     onDragEnd,
-    onAddSlide
+    onAddSlide,
+    totalSlides,
 }) => {
+    const doneCount = (highestActiveIndex >= 0 ? highestActiveIndex : 0);
+    const totalCount = totalSlides ?? outlines?.length ?? 0;
+    const progressPct = totalCount > 0 ? Math.min(100, Math.round((doneCount / totalCount) * 100)) : 0;
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -44,7 +49,30 @@ const OutlineContent: React.FC<OutlineContentProps> = ({
     );
 
     return (
-        <div className="space-y-6 font-syne ">
+        <div className="space-y-6 font-syne">
+            {/* Progress bar + status text when streaming */}
+            {isStreaming && (
+                <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span className="flex items-center gap-1.5">
+                            <Loader2 className="h-3 w-3 animate-spin text-violet-500" />
+                            {activeSlideIndex !== null
+                                ? `Writing slide ${activeSlideIndex + 1}${totalCount > 0 ? ` of ${totalCount}` : ""}…`
+                                : "Generating outlines…"}
+                        </span>
+                        {totalCount > 0 && (
+                            <span className="tabular-nums">{progressPct}%</span>
+                        )}
+                    </div>
+                    <div className="h-1 w-full rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                            className="h-full rounded-full bg-gradient-to-r from-violet-400 to-violet-600 transition-all duration-500"
+                            style={{ width: `${Math.max(4, progressPct)}%` }}
+                        />
+                    </div>
+                </div>
+            )}
+
             {isLoading && (!outlines || outlines.length === 0) && (
                 <div className="flex items-center justify-center">
                     <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 text-blue-600 px-2 py-0.5 text-xs">

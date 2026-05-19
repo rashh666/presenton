@@ -7,7 +7,7 @@ import random
 import traceback
 from typing import Annotated, List, Literal, Optional, Tuple
 import dirtyjson
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,6 +74,8 @@ from utils.process_slides import (
 )
 from utils.get_layout_by_name import get_layout_by_name
 from utils.llm_utils import message_content_to_text
+from utils.personas import get_persona
+from utils.pptx_postprocess import apply_persona_postprocess
 from utils.simple_auth import (
     SESSION_COOKIE_NAME,
     create_session_token,
@@ -86,6 +88,25 @@ logger = logging.getLogger(__name__)
 
 
 PRESENTATION_ROUTER = APIRouter(prefix="/presentation", tags=["Presentation"])
+
+
+def _apply_palette_override(persona_config: dict, palette_override: str) -> dict:
+    """Return a deep-copy of persona_config with visual_palette[0] replaced by the override hex colour."""
+    import copy
+    hex_clean = palette_override.lstrip("#").upper()
+    if len(hex_clean) == 3:
+        hex_clean = "".join(c * 2 for c in hex_clean)
+    if len(hex_clean) != 6 or not all(c in "0123456789ABCDEF" for c in hex_clean):
+        return persona_config  # invalid colour — skip silently
+    override_hex = "#" + hex_clean
+    config = copy.deepcopy(persona_config)
+    visual_layout = config.setdefault("visual_layout", {})
+    existing = list(visual_layout.get("visual_palette", []))
+    visual_layout["visual_palette"] = [override_hex] + existing
+    post = config.setdefault("post_processing", {})
+    if post.get("add_bottom_color_bar"):
+        post["bottom_bar_color_index"] = 0
+    return config
 
 
 def _extract_custom_template_id(layout_name: Optional[str]) -> Optional[uuid.UUID]:
@@ -289,6 +310,7 @@ async def create_presentation(
 
 @PRESENTATION_ROUTER.post("/prepare", response_model=PresentationModel)
 async def prepare_presentation(
+    request: Request,
     presentation_id: Annotated[uuid.UUID, Body()],
     outlines: Annotated[List[SlideOutlineModel], Body()],
     layout: Annotated[PresentationLayoutModel, Body()],
@@ -301,6 +323,8 @@ async def prepare_presentation(
     presentation = await sql_session.get(PresentationModel, presentation_id)
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
+
+    persona_config = get_persona(request.headers.get("x-persona"))
 
     presentation_outline_model = PresentationOutlineModel(slides=outlines)
 
@@ -315,6 +339,7 @@ async def prepare_presentation(
                 presentation_outline=presentation_outline_model,
                 presentation_layout=layout,
                 instructions=presentation.instructions,
+                persona_config=persona_config,
             )
         )
 
@@ -364,7 +389,11 @@ async def prepare_presentation(
 
 @PRESENTATION_ROUTER.get("/stream/{id}", response_model=PresentationWithSlides)
 async def stream_presentation(
-    id: uuid.UUID, sql_session: AsyncSession = Depends(get_async_session)
+    request: Request,
+    id: uuid.UUID,
+    persona: Optional[str] = Query(default=None),
+    palette_override: Optional[str] = Query(default=None),
+    sql_session: AsyncSession = Depends(get_async_session),
 ):
     presentation = await sql_session.get(PresentationModel, id)
     if not presentation:
@@ -379,6 +408,15 @@ async def stream_presentation(
             status_code=400,
             detail="Outlines can not be empty",
         )
+
+    persona_key = request.headers.get("x-persona") or persona
+    palette_override_val = request.headers.get("x-palette-override") or palette_override
+    persona_config = get_persona(persona_key)
+    if palette_override_val:
+        persona_config = _apply_palette_override(persona_config, palette_override_val)
+    persona_image_suffix = (
+        persona_config.get("image_generation", {}).get("default_prompt_suffix") or None
+    )
 
     image_generation_service = ImageGenerationService(get_images_directory())
 
@@ -413,6 +451,7 @@ async def stream_presentation(
                     presentation.tone,
                     presentation.verbosity,
                     presentation.instructions,
+                    persona_config=persona_config,
                 )
             except HTTPException as e:
                 yield SSEErrorResponse(detail=e.detail).to_string()
@@ -441,6 +480,7 @@ async def stream_presentation(
                         if i < len(image_urls_for_slides)
                         else None
                     ),
+                    persona_image_suffix=persona_image_suffix,
                 )
             )
             async_assets_generation_tasks.append(asset_task)
@@ -628,9 +668,18 @@ async def generate_presentation_handler(
     presentation_id: uuid.UUID,
     async_status: Optional[AsyncPresentationGenerationTaskModel],
     export_cookie_header: Optional[str] = None,
+    persona_key: Optional[str] = None,
+    palette_override: Optional[str] = None,
     sql_session: AsyncSession = Depends(get_async_session),
 ):
     try:
+        persona_config = get_persona(persona_key)
+        if palette_override:
+            persona_config = _apply_palette_override(persona_config, palette_override)
+        persona_image_suffix = (
+            persona_config.get("image_generation", {}).get("default_prompt_suffix") or None
+        )
+
         using_slides_markdown = False
         language_to_use = (request.language or "").strip() or None
         additional_context = ""
@@ -708,6 +757,7 @@ async def generate_presentation_handler(
                 request.include_title_slide,
                 request.web_search,
                 request.include_table_of_contents,
+                persona_config=persona_config,
             ):
 
                 if isinstance(chunk, HTTPException):
@@ -801,6 +851,7 @@ async def generate_presentation_handler(
                     layout_model,
                     request.instructions,
                     using_slides_markdown,
+                    persona_config=persona_config,
                 )
             )
 
@@ -889,6 +940,7 @@ async def generate_presentation_handler(
                     request.tone.value,
                     request.verbosity.value,
                     request.instructions,
+                    persona_config=persona_config,
                 )
                 for i in range(start, end)
             ]
@@ -924,6 +976,7 @@ async def generate_presentation_handler(
                         image_generation_service,
                         slide,
                         outline_image_urls=image_urls_for_batch[offset],
+                        persona_image_suffix=persona_image_suffix,
                     )
                 )
                 for offset, slide in enumerate(batch_slides)
@@ -960,6 +1013,10 @@ async def generate_presentation_handler(
             request.export_as,
             cookie_header=export_cookie_header,
         )
+
+        # 10. Persona post-processing (watermark / colour bar) – PPTX only
+        if request.export_as == "pptx" and persona_config:
+            apply_persona_postprocess(presentation_and_path.path, persona_config)
 
         response = PresentationPathAndEditPath(
             **presentation_and_path.model_dump(),
@@ -1024,6 +1081,8 @@ async def generate_presentation_sync(
             presentation_id,
             None,
             export_cookie_header=_build_export_cookie_header(request_http),
+            persona_key=request_http.headers.get("x-persona"),
+            palette_override=request_http.headers.get("x-palette-override"),
             sql_session=sql_session,
         )
     except HTTPException:
@@ -1059,6 +1118,8 @@ async def generate_presentation_async(
             presentation_id,
             async_status=async_status,
             export_cookie_header=_build_export_cookie_header(request_http),
+            persona_key=request_http.headers.get("x-persona"),
+            palette_override=request_http.headers.get("x-palette-override"),
             sql_session=sql_session,
         )
         return async_status

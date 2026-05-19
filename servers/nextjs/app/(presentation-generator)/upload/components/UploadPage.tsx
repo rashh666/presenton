@@ -10,7 +10,7 @@
  */
 
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { clearOutlines, setPresentationId } from "@/store/slices/presentationGeneration";
@@ -18,7 +18,7 @@ import { PromptInput } from "./PromptInput";
 import { LanguageType, PresentationConfig, ToneType, VerbosityType } from "../type";
 import SupportingDoc from "./SupportingDoc";
 import { Button } from "@/components/ui/button";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Sparkles, Palette, X } from "lucide-react";
 import { toast } from "sonner";
 import { PresentationGenerationApi } from "../../services/api/presentation-generation";
 import { OverlayLoader } from "@/components/ui/overlay-loader";
@@ -30,6 +30,7 @@ import { RootState } from "@/store/store";
 import { ImagesApi } from "../../services/api/images";
 import CurrentConfig from "./CurrentConfig";
 import { LLMConfig } from "@/types/llm_config";
+import { getApiUrl } from "@/utils/api";
 
 const STOCK_IMAGE_PROVIDERS = new Set(["pexels", "pixabay"]);
 const FILE_TYPE_WORD = new Set([".doc", ".docx", ".docm", ".odt", ".rtf"]);
@@ -107,6 +108,48 @@ const UploadPage = () => {
   const pathname = usePathname();
   const dispatch = useDispatch();
   const llmConfig = useSelector((state: RootState) => state.userConfig.llm_config);
+
+  const [personas, setPersonas] = useState<Record<string, string>>({});
+  const [selectedPersona, setSelectedPersona] = useState<string>("");
+  const [paletteOverride, setPaletteOverride] = useState<string>("");
+
+  useEffect(() => {
+    const savedPersona = localStorage.getItem("selectedPersona") || "";
+    setSelectedPersona(savedPersona);
+    const savedPalette = localStorage.getItem("paletteOverride") || "";
+    setPaletteOverride(savedPalette);
+    fetch(getApiUrl("/api/v1/ppt/personas"))
+      .then((r) => r.ok ? r.json() : {})
+      .then((data: Record<string, string>) => {
+        setPersonas(data);
+        if (savedPersona && !data[savedPersona] && Object.keys(data).length > 0) {
+          const first = Object.keys(data)[0];
+          setSelectedPersona(first);
+          localStorage.setItem("selectedPersona", first);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handlePaletteChange = (colour: string) => {
+    setPaletteOverride(colour);
+    localStorage.setItem("paletteOverride", colour);
+  };
+
+  const clearPaletteOverride = () => {
+    setPaletteOverride("");
+    localStorage.removeItem("paletteOverride");
+  };
+
+  const handlePersonaChange = (key: string) => {
+    setSelectedPersona(key);
+    localStorage.setItem("selectedPersona", key);
+    const personaKeys = Object.keys(personas);
+    if (personaKeys.length === 2 && key) {
+      const other = personaKeys.find((k) => k !== key) || "";
+      console.log(`[A/B Persona] Selected: "${key}" | Rejected: "${other}"`);
+    }
+  };
 
   const [files, setFiles] = useState<File[]>([]);
   const [config, setConfig] = useState<PresentationConfig>({
@@ -329,6 +372,8 @@ const UploadPage = () => {
       include_table_of_contents: !!config?.includeTableOfContents,
       include_title_slide: !!config?.includeTitleSlide,
       web_search: !!config?.webSearch,
+      personaKey: selectedPersona || null,
+      paletteOverride: paletteOverride || null,
     });
 
 
@@ -395,7 +440,65 @@ const UploadPage = () => {
           />
         </div>
 
-        <div className="p-4">
+        <div className="p-4 flex items-center justify-between gap-3">
+          {Object.keys(personas).length > 0 && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-[#5146E5]" />
+              <label className="text-xs font-medium text-[#333333] font-syne whitespace-nowrap">
+                My Signature
+              </label>
+              <select
+                value={selectedPersona}
+                onChange={(e) => handlePersonaChange(e.target.value)}
+                className="text-xs font-medium font-syne h-[34px] rounded-full px-3 ring-1 ring-inset ring-slate-200 shadow-sm bg-white text-[#191919] focus:outline-none focus:ring-[#5146E5]/50"
+                title={selectedPersona ? personas[selectedPersona] : "No signature"}
+              >
+                <option value="">None</option>
+                {Object.entries(personas).map(([key, desc]) => (
+                  <option key={key} value={key}>
+                    {key}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="flex items-center gap-2 shrink-0">
+            <Palette className="w-3.5 h-3.5 text-[#5146E5]" />
+            <label className="text-xs font-medium text-[#333333] font-syne whitespace-nowrap">
+              Colour
+            </label>
+            <div className="relative flex items-center gap-1">
+              <label
+                className="flex items-center gap-1.5 h-[34px] rounded-full px-3 ring-1 ring-inset ring-slate-200 shadow-sm bg-white cursor-pointer"
+                title="Override primary colour for this session"
+              >
+                <span
+                  className="w-4 h-4 rounded-full border border-slate-200"
+                  style={{ background: paletteOverride || "#e2e8f0" }}
+                />
+                <span className="text-xs font-medium font-syne text-[#191919]">
+                  {paletteOverride || "None"}
+                </span>
+                <input
+                  type="color"
+                  value={paletteOverride || "#5146E5"}
+                  onChange={(e) => handlePaletteChange(e.target.value)}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+              </label>
+              {paletteOverride && (
+                <button
+                  type="button"
+                  onClick={clearPaletteOverride}
+                  className="p-1 rounded-full hover:bg-slate-100"
+                  title="Clear colour override"
+                >
+                  <X className="w-3 h-3 text-slate-500" />
+                </button>
+              )}
+            </div>
+          </div>
+
           <Button
             onClick={handleGeneratePresentation}
             style={{

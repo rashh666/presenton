@@ -10,6 +10,7 @@ from utils.get_env import get_app_data_directory_env
 from utils.model_availability import (
     check_llm_and_image_provider_api_or_model_availability,
 )
+from utils.personas import load_personas
 from utils.simple_auth import (
     clear_stored_credentials,
     force_set_credentials,
@@ -95,6 +96,7 @@ async def app_lifespan(_: FastAPI):
     await create_db_and_tables()
     _bootstrap_auth_from_env()
     await check_llm_and_image_provider_api_or_model_availability()
+    load_personas()
     yield
     # Shutdown: release all database connections to prevent stale/leaked pools.
     await dispose_engines()

@@ -83,8 +83,14 @@ export const useOutlineStreaming = (presentationId: string | null) => {
 
     const openStream = () => {
       closeEventSource();
+      const personaKey = typeof window !== "undefined" ? localStorage.getItem("selectedPersona") : null;
+      const paletteOverride = typeof window !== "undefined" ? localStorage.getItem("paletteOverride") : null;
+      const params = new URLSearchParams();
+      if (personaKey) params.set("persona", personaKey);
+      if (paletteOverride) params.set("palette_override", paletteOverride);
+      const queryString = params.toString() ? `?${params.toString()}` : "";
       eventSource = new EventSource(
-        getApiUrl(`/api/v1/ppt/outlines/stream/${presentationId}`)
+        getApiUrl(`/api/v1/ppt/outlines/stream/${presentationId}${queryString}`)
       );
 
       eventSource.addEventListener("response", (event) => {
@@ -158,6 +164,9 @@ export const useOutlineStreaming = (presentationId: string | null) => {
               closeEventSource();
               clearRetryTimer();
               retryCount = 0;
+              toast.success("Outlines ready", {
+                description: "Select a template and click Generate to build your slides.",
+              });
             } catch (error) {
               if (!scheduleRetry("failed to parse complete payload")) {
                 resetStreamingState();

@@ -28,6 +28,8 @@ def get_generate_kwargs(
     tools: Optional[list[LLMTool]] = None,
     response_format: Optional[ResponseFormat] = None,
     stream: bool = False,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = None,
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "model": model,
@@ -40,6 +42,10 @@ def get_generate_kwargs(
         kwargs["tools"] = tools
     if response_format is not None:
         kwargs["response_format"] = response_format
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    if top_p is not None:
+        kwargs["top_p"] = top_p
 
     extra_body = get_extra_body()
     if extra_body:
@@ -92,6 +98,8 @@ async def generate_structured_with_schema_retries(
     strict: bool = False,
     validate_schema: bool = False,
     validate_schema_max_loop_count: int = 4,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = None,
 ) -> dict:
     """
     Parse retries (inner loop) plus optional JSON Schema validation feedback loops (outer loop),
@@ -109,6 +117,8 @@ async def generate_structured_with_schema_retries(
                     model=model,
                     messages=working_messages,
                     response_format=response_format,
+                    temperature=temperature,
+                    top_p=top_p,
                 ),
             )
             content = extract_structured_content(response.content)

@@ -1,5 +1,15 @@
-import React, { useEffect, useState } from "react";
-import { Loader2, PlusIcon, Trash2, Pencil, Trash } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ImageIcon, Loader2, PlusIcon, Pencil, Trash, RefreshCw, SpellCheck } from "lucide-react";
+
+const PLACEHOLDER_MARKERS = ["/static/images/placeholder", "/static/icons/placeholder", "placeholder.jpg", "placeholder.svg"];
+
+function hasPendingImages(obj: any, depth = 0): boolean {
+  if (!obj || depth > 8) return false;
+  if (typeof obj === "string") return PLACEHOLDER_MARKERS.some((m) => obj.toLowerCase().includes(m));
+  if (Array.isArray(obj)) return obj.some((v) => hasPendingImages(v, depth + 1));
+  if (typeof obj === "object") return Object.values(obj).some((v) => hasPendingImages(v, depth + 1));
+  return false;
+}
 import {
   Popover,
   PopoverContent,
@@ -31,6 +41,8 @@ interface SlideContentProps {
 const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
   const dispatch = useDispatch();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isProofreading, setIsProofreading] = useState(false);
   const [showNewSlideSelection, setShowNewSlideSelection] = useState(false);
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState(false);
   const [isSpeakerPopoverOpen, setIsSpeakerPopoverOpen] = useState(false);
@@ -39,7 +51,10 @@ const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
     (state: RootState) => state.presentationGeneration
   );
 
-  // Use the centralized group layouts hook
+  const pendingImages = useMemo(
+    () => !isStreaming && hasPendingImages(slide.content),
+    [slide.content, isStreaming]
+  );
 
   const pathname = usePathname();
 
@@ -77,6 +92,39 @@ const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
       });
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    setIsRegenerating(true);
+    try {
+      const personaKey = typeof window !== "undefined"
+        ? localStorage.getItem("selectedPersona")
+        : null;
+      const response = await PresentationGenerationApi.regenerateSlide(slide.id, personaKey);
+      if (response) {
+        dispatch(updateSlide({ index: slide.index, slide: response }));
+        toast.success("Slide regenerated");
+      }
+    } catch (error: any) {
+      toast.error("Failed to regenerate slide", { description: error.message });
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const handleProofread = async () => {
+    setIsProofreading(true);
+    try {
+      const response = await PresentationGenerationApi.proofreadSlide(slide.id);
+      if (response) {
+        dispatch(updateSlide({ index: slide.index, slide: response }));
+        toast.success("Spelling & grammar fixed");
+      }
+    } catch (error: any) {
+      toast.error("Proofread failed", { description: error.message });
+    } finally {
+      setIsProofreading(false);
     }
   };
 
@@ -135,6 +183,13 @@ const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
         >
           {/* <V1ContentRender slide={slide} isEditMode={true} theme={null} /> */}
           <SlideScale slide={slide} theme={presentationData?.theme || null} />
+          {pendingImages && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/90 px-3 py-1 text-xs font-medium text-blue-600 shadow-sm pointer-events-none">
+              <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+              <ImageIcon className="h-3 w-3 shrink-0" />
+              <span>Fetching images…</span>
+            </div>
+          )}
           {!showNewSlideSelection && (
             <div className="group-hover:opacity-100 hidden md:block opacity-0 transition-opacity my-4 duration-300">
               <ToolTip content="Add new slide below">
@@ -226,6 +281,32 @@ const SlideContent = ({ slide, index, presentationId }: SlideContentProps) => {
                   </form>
                 </PopoverContent>
               </Popover>
+
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+                className="flex px-3.5 py-2.5 items-center justify-center rounded-full bg-[#F7F6F9] font-syne disabled:opacity-50"
+              >
+                <ToolTip content="Regenerate slide text">
+                  {isRegenerating
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <RefreshCw className="h-4 w-4" />}
+                </ToolTip>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleProofread}
+                disabled={isProofreading}
+                className="flex px-3.5 py-2.5 items-center justify-center rounded-full bg-[#F7F6F9] font-syne disabled:opacity-50"
+              >
+                <ToolTip content="Fix spelling & grammar">
+                  {isProofreading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <SpellCheck className="h-4 w-4" />}
+                </ToolTip>
+              </button>
 
               {slide?.speaker_note && <Popover open={isSpeakerPopoverOpen} onOpenChange={setIsSpeakerPopoverOpen}>
                 <PopoverTrigger asChild>

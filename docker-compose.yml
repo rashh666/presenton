@@ -328,6 +328,64 @@ services:
       - AUTH_OVERRIDE_FROM_ENV=${AUTH_OVERRIDE_FROM_ENV:-}
       - RESET_AUTH=${RESET_AUTH:-}
 
+  # ---------------------------------------------------------------------------
+  # AMD ROCm profile — runs Presenton against the local presenton_proxy.py
+  # GPU process manager.  The proxy runs on the HOST (not in this container)
+  # and manages llama-server on your RX 9060 XT cards via ROCm.
+  #
+  # Prerequisites (on the host, before docker compose up):
+  #   cd /home/rashid/my-project && python presenton_proxy.py &
+  #
+  # Then start this profile:
+  #   docker compose --profile amd up production-amd
+  production-amd:
+    # image: ghcr.io/presenton/presenton:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - amd
+    ports:
+      - "5000:80"
+      - "1455:1455"
+    volumes:
+      - ./app_data:/app_data
+    extra_hosts:
+      # Allow the container to reach the proxy running on the host
+      - "host.docker.internal:host-gateway"
+    environment:
+      - MIGRATE_DATABASE_ON_STARTUP=true
+
+      # --- Local AMD GPU model via presenton_proxy.py ---
+      - LLM=custom
+      - CUSTOM_LLM_URL=http://host.docker.internal:8000/v1
+      - CUSTOM_MODEL=${CUSTOM_MODEL:-gemma3}
+      - CUSTOM_LLM_API_KEY=${PROXY_API_KEY:-}
+
+      # Image generation: use ComfyUI on AMD if available, else disable.
+      # To enable: install ComfyUI with ROCm and set COMFYUI_URL.
+      - IMAGE_PROVIDER=${IMAGE_PROVIDER:-disabled}
+      - COMFYUI_URL=${COMFYUI_URL:-}
+      - COMFYUI_WORKFLOW=${COMFYUI_WORKFLOW:-}
+      # Stock photo fallbacks (no GPU needed):
+      - PEXELS_API_KEY=${PEXELS_API_KEY:-}
+      - PIXABAY_API_KEY=${PIXABAY_API_KEY:-}
+
+      # --- Standard Presenton settings ---
+      - CAN_CHANGE_KEYS=${CAN_CHANGE_KEYS:-}
+      - EXTENDED_REASONING=${EXTENDED_REASONING:-}
+      - DISABLE_THINKING=${DISABLE_THINKING:-}
+      - WEB_GROUNDING=${WEB_GROUNDING:-}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - DISABLE_ANONYMOUS_TRACKING=${DISABLE_ANONYMOUS_TRACKING:-}
+      - MEM0_ENABLED=${MEM0_ENABLED:-false}
+      - LITEPARSE_DPI=${LITEPARSE_DPI:-120}
+      - LITEPARSE_NUM_WORKERS=${LITEPARSE_NUM_WORKERS:-1}
+      - AUTH_USERNAME=${AUTH_USERNAME:-}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-}
+      - AUTH_OVERRIDE_FROM_ENV=${AUTH_OVERRIDE_FROM_ENV:-}
+      - RESET_AUTH=${RESET_AUTH:-}
+
 volumes:
   presenton_root_node_modules:
   presenton_document_extraction_liteparse:
