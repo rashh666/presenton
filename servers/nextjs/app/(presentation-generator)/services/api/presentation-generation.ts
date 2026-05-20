@@ -66,6 +66,7 @@ export class PresentationGenerationApi {
     include_title_slide,
     web_search,
     personaKey,
+    paletteOverride,
   }: {
     content: string;
     n_slides: number | null;
