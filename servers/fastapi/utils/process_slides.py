@@ -10,6 +10,7 @@ from utils.asset_directory_utils import (
     normalize_slide_asset_url,
 )
 from utils.dict_utils import get_dict_at_path, get_dict_paths_with_key, set_dict_at_path
+from utils.icon_weights import DEFAULT_ICON_WEIGHT, normalize_icon_weight
 
 
 async def process_slide_and_fetch_assets(
@@ -18,10 +19,12 @@ async def process_slide_and_fetch_assets(
     outline_image_urls: Optional[List[str]] = None,
     persona_image_suffix: Optional[str] = None,
     persona_negative_prompt: Optional[str] = None,
+    icon_weight: str = DEFAULT_ICON_WEIGHT,
 ) -> List[ImageAsset]:
 
     async_tasks = []
     async_task_meta = []
+    resolved_icon_weight = normalize_icon_weight(icon_weight)
 
     image_paths = get_dict_paths_with_key(slide.content, "__image_prompt__")
     icon_paths = get_dict_paths_with_key(slide.content, "__icon_query__")
@@ -54,7 +57,10 @@ async def process_slide_and_fetch_assets(
     for icon_path in icon_paths:
         __icon_query__parent = get_dict_at_path(slide.content, icon_path)
         async_tasks.append(
-            ICON_FINDER_SERVICE.search_icons(__icon_query__parent["__icon_query__"])
+            ICON_FINDER_SERVICE.search_icons(
+                __icon_query__parent["__icon_query__"],
+                weight=resolved_icon_weight,
+            )
         )
         async_task_meta.append(("icon", icon_path))
 
@@ -94,7 +100,9 @@ async def process_old_and_new_slides_and_fetch_assets(
     new_slide_content: dict,
     persona_image_suffix: Optional[str] = None,
     persona_negative_prompt: Optional[str] = None,
+    icon_weight: str = DEFAULT_ICON_WEIGHT,
 ) -> List[ImageAsset]:
+    resolved_icon_weight = normalize_icon_weight(icon_weight)
     # Finds all old images
     old_image_dict_paths = get_dict_paths_with_key(
         old_slide_content, "__image_prompt__"
@@ -171,7 +179,10 @@ async def process_old_and_new_slides_and_fetch_assets(
             continue
 
         async_icon_fetch_tasks.append(
-            ICON_FINDER_SERVICE.search_icons(new_icon["__icon_query__"])
+            ICON_FINDER_SERVICE.search_icons(
+                new_icon["__icon_query__"],
+                weight=resolved_icon_weight,
+            )
         )
         new_icons_fetch_status.append(True)
 

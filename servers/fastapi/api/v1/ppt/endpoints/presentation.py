@@ -439,6 +439,7 @@ async def stream_presentation(
     async def inner():
         structure = presentation.get_structure()
         layout = presentation.get_layout()
+        icon_weight = layout.icon_weight
         outline = presentation.get_presentation_outline()
         image_urls_for_slides = get_images_for_slides_from_outline(outline.slides)
 
@@ -498,6 +499,7 @@ async def stream_presentation(
                     ),
                     persona_image_suffix=persona_image_suffix,
                     persona_negative_prompt=persona_negative_prompt,
+                    icon_weight=icon_weight,
                 )
             )
             async_assets_generation_tasks.append(asset_task)
@@ -852,10 +854,11 @@ async def generate_presentation_handler(
         )
         layout_model = await get_layout_by_name(request.template)
         logger.info(
-            "[presentation.generate] layout ready template=%r slides=%d ordered=%s",
+            "[presentation.generate] layout ready template=%r slides=%d ordered=%s icon_weight=%s",
             request.template,
             len(layout_model.slides),
             layout_model.ordered,
+            layout_model.icon_weight,
         )
         total_slide_layouts = len(layout_model.slides)
 
@@ -996,6 +999,7 @@ async def generate_presentation_handler(
                         outline_image_urls=image_urls_for_batch[offset],
                         persona_image_suffix=persona_image_suffix,
                         persona_negative_prompt=persona_negative_prompt,
+                        icon_weight=layout_model.icon_weight,
                     )
                 )
                 for offset, slide in enumerate(batch_slides)
