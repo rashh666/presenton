@@ -29,6 +29,7 @@ dependencies = [
     "llmai==0.2.4",
     "jsonschema>=4.26.0",
     "python-pptx>=1.0.0",
+    "duckduckgo-search>=6.0.0",
 ]
 
 [tool.uv]

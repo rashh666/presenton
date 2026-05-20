@@ -76,6 +76,7 @@ from utils.get_layout_by_name import get_layout_by_name
 from utils.llm_utils import message_content_to_text
 from utils.personas import get_persona
 from utils.pptx_postprocess import apply_persona_postprocess
+from utils.web_search import build_search_context
 from utils.simple_auth import (
     SESSION_COOKIE_NAME,
     create_session_token,
@@ -433,6 +434,9 @@ async def stream_presentation(
         persona_config.get("image_generation", {}).get("default_prompt_suffix") or None
     )
     persona_negative_prompt = _build_negative_prompt(persona_config)
+    search_context = await build_search_context(
+        presentation.content, presentation.web_search
+    )
 
     image_generation_service = ImageGenerationService(get_images_directory())
 
@@ -469,6 +473,7 @@ async def stream_presentation(
                     presentation.verbosity,
                     presentation.instructions,
                     persona_config=persona_config,
+                    search_context=search_context,
                 )
             except HTTPException as e:
                 yield SSEErrorResponse(detail=e.detail).to_string()
@@ -699,6 +704,9 @@ async def generate_presentation_handler(
             persona_config.get("image_generation", {}).get("default_prompt_suffix") or None
         )
         persona_negative_prompt = _build_negative_prompt(persona_config)
+        search_context = await build_search_context(
+            request.content, request.web_search
+        )
 
         using_slides_markdown = False
         language_to_use = (request.language or "").strip() or None
@@ -778,6 +786,7 @@ async def generate_presentation_handler(
                 request.web_search,
                 request.include_table_of_contents,
                 persona_config=persona_config,
+                search_context=search_context,
             ):
 
                 if isinstance(chunk, HTTPException):
@@ -962,6 +971,7 @@ async def generate_presentation_handler(
                     request.verbosity.value,
                     request.instructions,
                     persona_config=persona_config,
+                    search_context=search_context,
                 )
                 for i in range(start, end)
             ]

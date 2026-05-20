@@ -32,6 +32,7 @@ from utils.llm_calls.generate_presentation_outlines import (
     get_messages as get_outline_messages,
 )
 from utils.personas import get_persona
+from utils.web_search import build_search_context
 
 OUTLINES_ROUTER = APIRouter(prefix="/outlines", tags=["Outlines"])
 
@@ -68,6 +69,10 @@ async def stream_outlines(
             documents = documents_loader.documents
             if documents:
                 additional_context = "\n\n".join(documents)
+
+        search_context = await build_search_context(
+            presentation.content, presentation.web_search
+        )
 
         presentation_outlines_text = ""
 
@@ -120,6 +125,7 @@ async def stream_outlines(
             presentation.web_search,
             presentation.include_table_of_contents,
             persona_config=persona_config,
+            search_context=search_context,
         ):
             # Give control to the event loop
             await asyncio.sleep(0)

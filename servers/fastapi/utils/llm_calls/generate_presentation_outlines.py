@@ -115,6 +115,7 @@ def get_system_prompt(
     include_title_slide: bool = True,
     include_table_of_contents: bool = False,
     persona_config: Optional[dict] = None,
+    search_context: Optional[str] = None,
 ):
     verbosity_instruction = (
         "Slide content should be around 20 words but detailed enough to generate a good slide."
@@ -149,8 +150,10 @@ def get_system_prompt(
     )
 
     persona_style_block = _build_persona_style_block(persona_config)
+    search_context_block = (search_context + "\n\n") if search_context else ""
 
     system = (
+        f"{search_context_block}"
         "Generate presentation title and content for slides.\n"
         "Generate flow based on user **content** and use **context** just for reference.\n"
         "Presentation title should be plain text, not markdown. It should be a concise title for the presentation.\n"
@@ -236,6 +239,7 @@ def get_messages(
     include_title_slide: bool = True,
     include_table_of_contents: bool = False,
     persona_config: Optional[dict] = None,
+    search_context: Optional[str] = None,
 ) -> list[Message]:
     return [
         SystemMessage(
@@ -244,6 +248,7 @@ def get_messages(
                 include_title_slide,
                 include_table_of_contents,
                 persona_config,
+                search_context,
             ),
         ),
         UserMessage(
@@ -273,6 +278,7 @@ async def generate_ppt_outline(
     web_search: bool = False,
     include_table_of_contents: bool = False,
     persona_config: Optional[dict] = None,
+    search_context: Optional[str] = None,
 ):
     model = get_model()
     response_model = (
@@ -315,6 +321,7 @@ async def generate_ppt_outline(
                     include_title_slide,
                     include_table_of_contents,
                     persona_config,
+                    search_context,
                 ),
                 response_format=response_format,
                 tools=([WebSearchTool()] if use_search_tool else None),

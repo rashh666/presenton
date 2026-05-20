@@ -145,6 +145,7 @@ def get_system_prompt(
     instructions: Optional[str] = None,
     response_schema: Optional[dict] = None,
     persona_config: Optional[dict] = None,
+    search_context: Optional[str] = None,
 ):
     markdown_emphasis_rules = (
         "- Strictly use markdown to emphasize important points, by bolding or "
@@ -175,7 +176,8 @@ def get_system_prompt(
         response_schema
     )
 
-    return SLIDE_CONTENT_SYSTEM_PROMPT.format(
+    search_context_prefix = (search_context + "\n\n") if search_context else ""
+    return search_context_prefix + SLIDE_CONTENT_SYSTEM_PROMPT.format(
         markdown_emphasis_rules=markdown_emphasis_rules,
         user_instructions=user_instructions,
         tone_instructions=tone_instructions + ("\n" + persona_style_block if persona_style_block else ""),
@@ -200,6 +202,7 @@ def get_messages(
     instructions: Optional[str] = None,
     response_schema: Optional[dict] = None,
     persona_config: Optional[dict] = None,
+    search_context: Optional[str] = None,
 ) -> list[Message]:
 
     return [
@@ -210,6 +213,7 @@ def get_messages(
                 instructions,
                 response_schema,
                 persona_config,
+                search_context,
             ),
         ),
         UserMessage(
@@ -226,6 +230,7 @@ async def get_slide_content_from_type_and_outline(
     verbosity: Optional[str] = None,
     instructions: Optional[str] = None,
     persona_config: Optional[dict] = None,
+    search_context: Optional[str] = None,
 ):
     client = get_client(config=get_llm_config())
     model = get_model()
@@ -268,6 +273,7 @@ async def get_slide_content_from_type_and_outline(
             instructions,
             response_schema,
             persona_config,
+            search_context,
         )
 
         return await generate_structured_with_schema_retries(
