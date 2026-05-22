@@ -91,9 +91,11 @@ Separate processes: reasoner (Gemma 3) on GPU 0 / port 8081, coder (CodeGeeX4) o
 | `gemma3` | `models/reasoner/gemma3.gguf` | 8192 | — |
 | `dagger` | `models/reasoner/dagger.gguf` | 8192 | — |
 | `codegeex4` | `models/coder/codegeex4.gguf` | 16384 | — |
-| `qwen36_35b` | `models/reasoner/Qwen3.6-35B-A3B-UD-Q5_K_S.gguf` | 8192 | `-np 1 --kv-unified -sm row` |
+| `qwen36_35b` | `models/reasoner/Qwen3.6-35B-A3B-UD-Q5_K_S.gguf` | 8192 | `-np 1 --kv-unified -sm row --model-draft <self> --draft 2` |
 
-> **Qwen3.6-35B VRAM safeguards:** `-np 1` forces single-slot mode to prevent parallel-slot VRAM bloat; `--kv-unified` pools the KV cache across both GPUs; `-sm row` splits the model weight tensors evenly by rows across GPU 0 & 1. These flags are injected automatically — no manual intervention needed.
+> **Qwen3.6-35B VRAM safeguards & MTP engine:** `-np 1` forces single-slot mode to prevent parallel-slot VRAM bloat; `--kv-unified` pools the KV cache across both GPUs; `-sm row` splits model weight tensors evenly by rows across GPU 0 & 1; `--model-draft` points to the same GGUF file to activate the ad-hoc MTP heads baked into the model; `--draft 2` instructs llama-server to speculatively draft 2 tokens ahead per cycle. All flags are injected automatically — no manual intervention needed.
+>
+> **Note on flag format:** The updated llama.cpp arg parser (post-8375-line overhaul) enforces strict GNU formatting — single-dash (`-`) is reserved for single-character shortcuts only. Multi-character flags such as `--model-draft` and `--draft` require double-dash (`--`). Using `-md` or `-draft` with the new binary will crash llama-server on startup.
 
 **Idle Watchdog**  
 Runs as a background asyncio task, polling every **15 seconds**. If `time.time() - last_activity[role]` exceeds `settings.idle_timeout` (**600 s**), it hard-terminates the subprocess, flushing VRAM completely. Streaming responses reset the timer on every chunk via a heartbeat call.
