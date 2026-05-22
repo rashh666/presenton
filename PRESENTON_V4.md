@@ -98,7 +98,9 @@ Separate processes: reasoner (Gemma 3) on GPU 0 / port 8081, coder (CodeGeeX4) o
 > - **MTP draft model** — `mtp-Qwen_Qwen3.6-35B-A3B-Q4_0.gguf` (1.2 GB, MTP prediction heads only)
 > - **Total VRAM** — ~23.2 GB, well within the 32 GB ceiling
 >
-> `-np 1` forces single-slot mode; `--kv-unified` pools KV cache across both GPUs; `-sm row` splits tensors by rows across GPU 0 & 1; `--model-draft` loads the dedicated 1.2 GB MTP heads file (not a second full model copy); `--spec-draft-n-max 2` drafts 2 tokens ahead per cycle (~37 t/s baseline → ~60+ t/s). All flags are injected automatically.
+> `-np 1` forces single-slot mode; `--kv-unified` pools KV cache across both GPUs; `-sm row` splits tensors by rows across GPU 0 & 1; `--model-draft` loads the dedicated 1.2 GB MTP heads file (not a second full model copy); `--spec-draft-n-max 2` drafts 2 tokens ahead per cycle (~37 t/s baseline → ~60+ t/s). `--mmap` is intentionally absent — direct VRAM load is faster and more reliable than the memory-mapped path on ROCm for models of this size. All flags are injected automatically.
+>
+> **Load time:** Expect 2–3 minutes for the combined 23.2 GB to load. The proxy startup timeout is set to **300 seconds** to accommodate this. Watch for `Unified model process healthy.` in the Terminal 1 log before sending any requests.
 >
 > **Note on flag format:** The updated llama.cpp arg parser (post-8375-line overhaul) enforces strict GNU formatting — `--model-draft` and `--spec-draft-n-max` require double-dash (`--`). The legacy `--draft` flag has been removed from the new binary.
 
@@ -206,6 +208,7 @@ All variables are set in `~/my-project/.env` (read by the proxy) and passed thro
 | `REASONER_MODEL_KEY` | `gemma3` | Key in the model registry to load (`gemma3` or `qwen36_35b`) |
 | `IDLE_TIMEOUT` | `600` | Seconds before watchdog flushes VRAM |
 | `LLM_TIMEOUT` | `600` | HTTP timeout for forwarded LLM requests |
+| `process_startup_timeout` | `300` | Seconds the proxy waits for llama-server `/health` to return 200 before killing and retrying — raised from 120 s to accommodate the 22 GB + 1.2 GB two-model load |
 
 ### Docker Container (set in `docker-compose.yml` `production-amd` service)
 
